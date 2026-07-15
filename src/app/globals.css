@@ -37,6 +37,11 @@ button {
   font: inherit;
 }
 
+/* Mobile UI preferences — collapse hidden optional elements (no empty gaps). */
+html.kupa-mobile-prefs-active [data-mobile-hidden="1"] {
+  display: none !important;
+}
+
 /* ===== A4 Delivery Labels (3×6 = 18) — print-only layout ===== */
 @page {
   size: A4 portrait;

@@ -11,6 +11,7 @@ import { ProductsPanel } from "@/components/ProductsPanel";
 import { OrdersPanel } from "@/components/OrdersPanel";
 import { InventoryPanel } from "@/components/InventoryPanel";
 import { DeliveriesPanel } from "@/components/DeliveriesPanel";
+import { CustomizationCenter } from "@/components/CustomizationCenter";
 
 const tabs: { id: TabId; label: string }[] = [
   { id: "home", label: "בית" },
@@ -31,6 +32,7 @@ export function AppShell() {
   const [ready, setReady] = useState(false);
   const [pendingDirtyLoad, setPendingDirtyLoad] = useState(false);
   const [banner, setBanner] = useState("");
+  const [customizationOpen, setCustomizationOpen] = useState(false);
   const store = useKupaStore();
   const cloudHydrated = useKupaStore((s) => s.cloudHydrated);
 
@@ -78,19 +80,31 @@ export function AppShell() {
             </h1>
             <p className="mt-1 text-sm text-[var(--muted)]">ממשק נייד מאובטח · מסונכרן לחשבון</p>
           </div>
-          <button
-            type="button"
-            className="mt-1 rounded-xl border border-[var(--line)] px-3 py-2 text-xs font-semibold text-[var(--muted)]"
-            onClick={() => {
-              void fetch("/api/auth/logout", { method: "POST" }).finally(() => {
-                window.location.href = "/login";
-              });
-            }}
-          >
-            יציאה
-          </button>
+          <div className="flex shrink-0 flex-col gap-2">
+            <button
+              type="button"
+              className="mt-1 rounded-xl border border-[var(--line)] px-3 py-2 text-xs font-semibold text-[var(--muted)]"
+              data-testid="open-customization-center"
+              onClick={() => setCustomizationOpen(true)}
+            >
+              התאמת ממשק
+            </button>
+            <button
+              type="button"
+              className="rounded-xl border border-[var(--line)] px-3 py-2 text-xs font-semibold text-[var(--muted)]"
+              onClick={() => {
+                void fetch("/api/auth/logout", { method: "POST" }).finally(() => {
+                  window.location.href = "/login";
+                });
+              }}
+            >
+              יציאה
+            </button>
+          </div>
         </div>
       </header>
+
+      <CustomizationCenter open={customizationOpen} onClose={() => setCustomizationOpen(false)} />
 
       <main className="flex-1 px-4 pb-28 pt-4">
         {pendingDirtyLoad ? (

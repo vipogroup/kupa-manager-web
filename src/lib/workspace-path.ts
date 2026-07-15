@@ -78,3 +78,27 @@ export function accountBackupPathname(
   const stamp = timestampIso.replace(/[:.]/g, "-");
   return `${prefix}${revision}-${stamp}.json`;
 }
+
+/** Account UI preferences (separate from business workspace snapshot). */
+export function accountPrefsPath(accountId: string): string | null {
+  const digest = accountWorkspaceDigest(accountId);
+  if (!digest) return null;
+  return `prefs/${digest}.json`;
+}
+
+export function accountPrefsBackupPrefix(accountId: string): string | null {
+  const digest = accountWorkspaceDigest(accountId);
+  if (!digest) return null;
+  return `prefs-backups/${digest}/`;
+}
+
+export function accountPrefsBackupPathname(
+  accountId: string,
+  revision: number,
+  timestampIso: string
+): string | null {
+  const prefix = accountPrefsBackupPrefix(accountId);
+  if (!prefix) return null;
+  const stamp = timestampIso.replace(/[:.]/g, "-");
+  return `${prefix}${revision}-${stamp}.json`;
+}

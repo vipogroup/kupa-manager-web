@@ -215,20 +215,48 @@ export function ProductsPanel({ onManageInventory }: { onManageInventory?: (prod
                 <li key={p.id} className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-xs text-[var(--muted)]" dir="ltr">
+                      <p
+                        className="text-xs text-[var(--muted)]"
+                        dir="ltr"
+                        data-mobile-id="products.mobile.list.productNumber"
+                      >
                         {p.productNumber}
                       </p>
-                      <p className="font-semibold">{p.name}</p>
-                      <p className="text-sm text-[var(--muted)]">
-                        {p.model ? `דגם ${p.model} · ` : ""}
+                      <p className="font-semibold" data-mobile-id="products.mobile.list.name">
+                        {p.name}
+                      </p>
+                      {p.model ? (
+                        <p className="text-sm text-[var(--muted)]" data-mobile-id="products.mobile.list.model">
+                          דגם {p.model}
+                        </p>
+                      ) : null}
+                      <p className="text-sm text-[var(--muted)]" data-mobile-id="products.mobile.list.sku">
                         {p.sku ? `SKU ${p.sku}` : "ללא SKU"}
                       </p>
-                      <p className="text-sm text-[var(--muted)]">
-                        מלאי {formatStock(p.stockQuantity)} {p.unit} · {p.active ? "פעיל" : "לא פעיל"}
+                      {p.barcode ? (
+                        <p
+                          className="text-sm text-[var(--muted)]"
+                          data-mobile-id="products.mobile.list.barcode"
+                          dir="ltr"
+                        >
+                          {p.barcode}
+                        </p>
+                      ) : null}
+                      <p className="text-sm text-[var(--muted)]" data-mobile-id="products.mobile.list.stockQty">
+                        מלאי {formatStock(p.stockQuantity)}{" "}
+                        <span data-mobile-id="products.mobile.list.unit">{p.unit}</span>
+                      </p>
+                      <p
+                        className="text-sm text-[var(--muted)]"
+                        data-mobile-id="products.mobile.list.activeStatus"
+                      >
+                        {p.active ? "פעיל" : "לא פעיל"}
                       </p>
                     </div>
                     <div className="shrink-0 text-left">
-                      <p className="font-semibold">{formatPriceILS(p.salePrice)}</p>
+                      <p className="font-semibold" data-mobile-id="products.mobile.list.salePrice">
+                        {formatPriceILS(p.salePrice)}
+                      </p>
                       <button
                         type="button"
                         onClick={() => openEdit(p)}
