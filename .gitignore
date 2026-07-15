@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local workspace sync (dev)
+.data
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
