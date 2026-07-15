@@ -19,6 +19,12 @@ import {
   type DeliveryFilterDate,
   type DeliveryFilterStatus,
 } from "@/lib/deliveries";
+import {
+  expectedPageCount,
+  prepareLabelPrintJob,
+  type LabelPrintMode,
+} from "@/lib/delivery-labels";
+import { DeliveryLabelsPrintView } from "@/components/DeliveryLabelsPrintView";
 import type { Delivery, DeliveryArea, DeliveryStatus, Order } from "@/lib/types";
 
 type Mode = "list" | "form" | "view";
@@ -81,6 +87,7 @@ export function DeliveriesPanel({ initialOrderId }: { initialOrderId?: string | 
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [confirmRefresh, setConfirmRefresh] = useState(false);
+  const [labelPreviewMode, setLabelPreviewMode] = useState<LabelPrintMode | null>(null);
   const pendingLeaveRef = useRef<(() => void) | null>(null);
 
   const eligibleOrders = useMemo(() => {
@@ -104,10 +111,54 @@ export function DeliveriesPanel({ initialOrderId }: { initialOrderId?: string | 
 
   const summary = useMemo(() => deliverySummary(store.deliveries || []), [store.deliveries]);
 
+  const labelJob = useMemo(() => {
+    if (!labelPreviewMode) {
+      return prepareLabelPrintJob(filtered, selectedIds, "filtered");
+    }
+    return prepareLabelPrintJob(filtered, selectedIds, labelPreviewMode);
+  }, [filtered, selectedIds, labelPreviewMode]);
+
   const selectedOrderPreview: Order | undefined = useMemo(
     () => (store.orders || []).find((o) => o.id === form.orderId),
     [store.orders, form.orderId]
   );
+
+  function runLabelPreview(mode: LabelPrintMode) {
+    const job = prepareLabelPrintJob(filtered, selectedIds, mode);
+    if (job.labels.length === 0) {
+      setError(
+        mode === "selected"
+          ? "לא נבחרו משלוחים להדפסה"
+          : "אין משלוחים מוצגים להדפסה לפי המסננים"
+      );
+      setLabelPreviewMode(null);
+      return;
+    }
+    setError("");
+    setMessage(
+      `תצוגה מקדימה: ${job.labels.length} מדבקות · ${job.pageCount} עמודים (${expectedPageCount(job.labels.length)} צפוי)`
+    );
+    setLabelPreviewMode(mode);
+  }
+
+  /** Print is read-only — does not mark dirty, mutate deliveries, stock, or revision. */
+  function runPrint(mode: LabelPrintMode) {
+    const job = prepareLabelPrintJob(filtered, selectedIds, mode);
+    if (job.labels.length === 0) {
+      setError(
+        mode === "selected"
+          ? "לא נבחרו משלוחים להדפסה"
+          : "אין משלוחים מוצגים להדפסה לפי המסננים"
+      );
+      return;
+    }
+    setError("");
+    setLabelPreviewMode(mode);
+    // Allow paint of print root before browser dialog (Save as PDF / physical printer).
+    window.setTimeout(() => {
+      window.print();
+    }, 50);
+  }
 
   function patchForm(patch: Partial<FormState>) {
     setForm((f) => ({ ...f, ...patch }));
@@ -732,6 +783,44 @@ export function DeliveriesPanel({ initialOrderId }: { initialOrderId?: string | 
             onChange={(e) => setSelectedDate(e.target.value)}
           />
         ) : null}
+
+        <div className="mt-3 grid grid-cols-2 gap-2 no-print" data-testid="lbl-actions">
+          <button
+            type="button"
+            data-testid="lbl-preview-selected"
+            className="rounded-xl border border-[var(--line)] px-3 py-3 text-xs font-semibold"
+            onClick={() => runLabelPreview("selected")}
+          >
+            תצוגה מקדימה · מסומנים
+          </button>
+          <button
+            type="button"
+            data-testid="lbl-preview-filtered"
+            className="rounded-xl border border-[var(--line)] px-3 py-3 text-xs font-semibold"
+            onClick={() => runLabelPreview("filtered")}
+          >
+            תצוגה מקדימה · מוצגים
+          </button>
+          <button
+            type="button"
+            data-testid="lbl-print-selected"
+            className="rounded-xl bg-[var(--accent)] px-3 py-3 text-xs font-semibold text-white"
+            onClick={() => runPrint("selected")}
+          >
+            הדפס מסומנים
+          </button>
+          <button
+            type="button"
+            data-testid="lbl-print-filtered"
+            className="rounded-xl bg-[var(--accent)] px-3 py-3 text-xs font-semibold text-white"
+            onClick={() => runPrint("filtered")}
+          >
+            הדפס מוצגים
+          </button>
+        </div>
+        <p className="mt-2 text-[0.7rem] text-[var(--muted)] no-print" data-testid="lbl-print-hint">
+          A4 לאורך · 3×6 · 18 מדבקות לעמוד · Save as PDF מחלון ההדפסה של הדפדפן. ההדפסה אינה משנה נתונים.
+        </p>
       </div>
 
       {message ? <p className="text-sm text-emerald-800">{message}</p> : null}
@@ -817,8 +906,32 @@ export function DeliveriesPanel({ initialOrderId }: { initialOrderId?: string | 
       )}
 
       {selectedIds.size > 0 ? (
-        <p className="text-xs text-[var(--muted)]">נבחרו מקומית: {selectedIds.size} (לא נשמר בענן)</p>
+        <p className="text-xs text-[var(--muted)] no-print">
+          נבחרו מקומית: {selectedIds.size} (לא נשמר בענן)
+        </p>
       ) : null}
+
+      {labelPreviewMode ? (
+        <div className="no-print space-y-2" data-testid="lbl-preview-panel">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold">
+              תצוגה מקדימה מדבקות (
+              {labelPreviewMode === "selected" ? "מסומנים" : "מוצגים"})
+            </p>
+            <button
+              type="button"
+              data-testid="lbl-close-preview"
+              className="rounded-xl border px-3 py-2 text-xs font-semibold"
+              onClick={() => setLabelPreviewMode(null)}
+            >
+              סגור תצוגה
+            </button>
+          </div>
+          <DeliveryLabelsPrintView pages={labelJob.pages} visible />
+        </div>
+      ) : (
+        <DeliveryLabelsPrintView pages={labelJob.pages} visible={false} />
+      )}
     </div>
   );
 }

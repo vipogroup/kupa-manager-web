@@ -229,7 +229,7 @@ export function AppShell() {
         {tab === "sync" && <SyncView />}
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-20 border-t border-[var(--line)] bg-[var(--panel)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+      <nav className="no-print fixed bottom-0 left-0 right-0 z-20 border-t border-[var(--line)] bg-[var(--panel)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
         <div className="mx-auto grid max-w-lg grid-cols-4 gap-0.5 px-1 py-2">
           {tabs.map((t) => (
             <button

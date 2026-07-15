@@ -36,3 +36,171 @@ input,
 button {
   font: inherit;
 }
+
+/* ===== A4 Delivery Labels (3×6 = 18) — print-only layout ===== */
+@page {
+  size: A4 portrait;
+  margin: 6mm;
+}
+
+.delivery-labels-print-hidden {
+  display: none;
+}
+
+.delivery-labels-preview {
+  display: block;
+  margin-top: 1rem;
+  overflow-x: auto;
+}
+
+.delivery-labels-page {
+  width: 198mm;
+  min-height: 285mm;
+  margin: 0 auto 8mm;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(6, 1fr);
+  gap: 1.5mm;
+  background: #fff;
+  border: 1px dashed #9db5a8;
+  box-sizing: border-box;
+  page-break-after: always;
+  break-after: page;
+}
+
+.delivery-labels-page:last-of-type {
+  page-break-after: auto;
+  break-after: auto;
+}
+
+.delivery-label-cell {
+  border: 1px solid #1a1a1a;
+  padding: 1.6mm 2mm;
+  overflow: hidden;
+  background: #fff;
+  box-sizing: border-box;
+  min-height: 0;
+}
+
+.delivery-label-cell--empty {
+  border-style: dotted;
+  border-color: #c5d4cc;
+  background: #fafcfa;
+}
+
+.delivery-label-body {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6mm;
+  font-size: 7.2pt;
+  line-height: 1.25;
+  color: #111;
+}
+
+.delivery-label-nums {
+  display: flex;
+  justify-content: space-between;
+  gap: 2mm;
+  font-weight: 700;
+  font-size: 7.5pt;
+}
+
+.delivery-label-name {
+  font-weight: 700;
+  font-size: 8.5pt;
+  margin: 0;
+}
+
+.delivery-label-phone,
+.delivery-label-address,
+.delivery-label-area {
+  margin: 0;
+  font-size: 7pt;
+}
+
+.delivery-label-products {
+  margin: 0;
+  padding-inline-start: 3mm;
+  flex: 1;
+  overflow: hidden;
+  font-size: 6.8pt;
+}
+
+.delivery-label-total {
+  margin: 0;
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4mm;
+  font-size: 7pt;
+  border-top: 1px solid #ccc;
+  padding-top: 0.8mm;
+}
+
+.delivery-label-total strong {
+  font-size: 8.5pt;
+}
+
+.delivery-labels-meta {
+  text-align: center;
+  font-size: 11px;
+  color: #5a6d63;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  #delivery-labels-print-root,
+  #delivery-labels-print-root * {
+    visibility: visible !important;
+  }
+
+  #delivery-labels-print-root {
+    display: block !important;
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+  }
+
+  .delivery-labels-preview,
+  .delivery-labels-print-hidden {
+    display: block !important;
+  }
+
+  .delivery-labels-page {
+    width: 198mm;
+    height: 285mm;
+    margin: 0;
+    border: none;
+    gap: 1.2mm;
+  }
+
+  .delivery-label-cell--empty {
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .delivery-labels-meta {
+    display: none !important;
+  }
+
+  /* Hide app chrome markers if any leak through */
+  nav,
+  header,
+  .no-print {
+    display: none !important;
+  }
+}
