@@ -1,0 +1,69 @@
+{
+  "project": "kupa-manager-web",
+  "status": "production-ready",
+  "productionUrl": "https://kupa-manager-web.vercel.app",
+  "githubRepository": "https://github.com/vipogroup/kupa-manager-web",
+  "branch": "master",
+  "gitSha": "PENDING_COMMIT",
+  "vercelProductionSha": "PENDING_DEPLOY",
+  "vercelProjectId": "prj_bMJOT38sqNQxMkA9yPBBMQrLn0OD",
+  "vercelOrgId": "team_We2Gv8A8bZpVXbI1bXPAj6nC",
+  "privateStoreId": "store_laQ1JqCA9U5WVes8",
+  "syncMode": "manual-save-load-refresh",
+  "realTimeSync": false,
+  "publicBlobStore": false,
+  "privateBlobStore": true,
+  "modules": {
+    "auth": true,
+    "income": true,
+    "expenses": true,
+    "customers": true,
+    "products": true,
+    "orders": true,
+    "inventory": true,
+    "deliveries": true,
+    "a4Labels": true
+  },
+  "screens": [
+    "home",
+    "income",
+    "expense",
+    "customers",
+    "products",
+    "orders",
+    "inventory",
+    "deliveries",
+    "sync",
+    "login"
+  ],
+  "futureModules": [],
+  "knownIssues": [
+    "npm audit: 2 moderate (next/postcss) — do not use npm audit fix --force",
+    "physical print / iPhone / Android checks remain manual"
+  ],
+  "backupPaths": {
+    "webSourceRoot": "C:\\Users\\ALFA DPM\\Downloads\\ממשקים חדשים\\Kupa_Manager_Web_Source_Backups",
+    "cloudRoot": "C:\\Users\\ALFA DPM\\Downloads\\ממשקים חדשים\\Kupa_Manager_Web_Cloud_Backups",
+    "publicBlobArchive": "PublicBlob-Backup-20260715-151906",
+    "publicBlobZipSha256": "E331E9722BD50A6D75C1EABA259176729FC3D81700619E73237AA9863F471AC1",
+    "webSourceFinalFolder": "KupaManager-Web-Final-20260715-205622",
+    "webSourceZipSha256": "67699DDB3182F5D0203724EC665C55217024E6C13F2DDEE14F2DA72205CBEB43",
+    "privateBlobFinal": "PrivateBlob-Final-Backup-20260715-205309",
+    "privateBlobZipSha256": "81029B13A70532FECAB2A1647A581E5F8241F42540965360C7EEC1A76238080E",
+    "windowsSource": "C:\\Users\\ALFA DPM\\Downloads\\ממשקים חדשים\\Kupa_Manager_Windows_Source_Backups\\KupaManager-Windows-Source-2.8.0-Schema14-20260715-133103"
+  },
+  "handoverDocuments": [
+    "docs/KUPA-MANAGER-WEB-FINAL-HANDOVER.md",
+    "docs/KUPA-MANAGER-WEB-FINAL-HANDOVER.txt",
+    "docs/FINAL-MANUAL-ACCEPTANCE-CHECKLIST.md",
+    "docs/A4-LABEL-PRINT-MANUAL-CHECKLIST.md"
+  ],
+  "testSummary": {
+    "fullSuitePass": 186,
+    "fullSuiteFail": 0,
+    "labelCloseoutPass": 18,
+    "twoDeviceE2E": "pass",
+    "lint": "pass",
+    "build": "pass"
+  }
+}

@@ -1,0 +1,54 @@
+מסמך מסירה סופי — Kupa Manager Web
+=====================================
+
+A. מצב נוכחי
+- תאריך: 2026-07-15
+- Production URL: https://kupa-manager-web.vercel.app
+- GitHub URL: https://github.com/vipogroup/kupa-manager-web
+- Branch: master
+- Final Git SHA / Vercel Production SHA: ראה docs/kupa-manager-web-final-status.json
+- Project ID: prj_bMJOT38sqNQxMkA9yPBBMQrLn0OD
+- Org ID: team_We2Gv8A8bZpVXbI1bXPAj6nC
+- Private Store ID: store_laQ1JqCA9U5WVes8
+- אין Public Store בפרודקשן
+
+B. נתיבי עבודה
+- Web: C:\Users\ALFA DPM\Downloads\ממשקים חדשים\kupa-manager-web
+- Windows: C:\Users\ALFA DPM\Downloads\ממשקים חדשים\ממשק ניהול הוצאות הכנסות 2\Kupa_Manager_Windows_v1_5_LAUNCH_FIXED
+- Web source backups: C:\Users\ALFA DPM\Downloads\ממשקים חדשים\Kupa_Manager_Web_Source_Backups
+- Windows source backup: C:\Users\ALFA DPM\Downloads\ממשקים חדשים\Kupa_Manager_Windows_Source_Backups\KupaManager-Windows-Source-2.8.0-Schema14-20260715-133103
+- Cloud backups: C:\Users\ALFA DPM\Downloads\ממשקים חדשים\Kupa_Manager_Web_Cloud_Backups
+
+C. מה עובד ב-Web
+התחברות, הכנסות, הוצאות, לקוחות, מוצרים, הזמנות, מלאי בסיסי, משלוחים, מדבקות A4, סנכרון ידני בין מכשירים.
+מסכים: בית, הכנסות, הוצאות, לקוחות, מוצרים, הזמנות, מלאי, משלוחים, סנכרון, התחברות.
+
+D. סנכרון
+שמור לענן / טען מהענן / Refresh. אין Real-time. Conflict 409. Revision. גיבויי ענן ב-Private Blob. Offline מקומי עד Save.
+
+E. מודל נתונים
+Customers, Products, Orders, Inventory Movements, Deliveries, Counters, Snapshot envelope, Revision metadata.
+
+F. אבטחה
+Login, Session (HttpOnly/Secure/SameSite Strict), Private Blob, HMAC workspace path, CSRF/Origin, Rate limits.
+שמות env בלבד: KUPA_ADMIN_USERNAME, KUPA_ADMIN_PASSWORD_HASH, KUPA_SESSION_SECRET, KUPA_WORKSPACE_NAMESPACE_SECRET, KUPA_PRIVATE_READ_WRITE_TOKEN.
+
+G. מה לא קיים
+Real-time sync, Windows/Web automatic sync, multiple users/permissions, automatic stock reduction, drivers/routes/GPS, AI/OCR, native mobile app.
+
+H. מגבלות ידועות
+שתי התראות npm moderate (next/postcss) — ללא audit fix --force.
+בדיקות הדפסה פיזיות ידניות.
+סנכרון דורש Save/Refresh.
+
+I. הוראות המשך
+npm ci ; npm run dev ; npm test ; npm run lint ; npm run build
+Deployment דרך GitHub בלבד. אין CLI production deploy.
+ודא GitHub SHA = Vercel Production SHA. גבה לפני שינוי גדול.
+
+J. שדרוגים עתידיים מומלצים
+1 Role-based users  2 Audit logs  3 Real-time sync  4 Automatic stock issue
+5 Delivery statuses  6 Proof of delivery  7 Reports  8 Windows/Web shared backend
+
+K. כללי בטיחות
+אין Secrets ב-Git. Test Workspace בלבד. גיבוי לפני Migration. Regression לפני Deploy. SHA match. אין שינוי Windows בלי הוראה.

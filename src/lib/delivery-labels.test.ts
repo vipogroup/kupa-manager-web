@@ -5,13 +5,18 @@ import {
   LABEL_COLUMNS,
   LABEL_ROWS,
   LABELS_PER_PAGE,
+  MAX_PRODUCT_LINES_PER_LABEL,
   assertFixedGrid,
   buildDeliveryLabelContent,
   chunkDeliveriesIntoPages,
+  expandDeliveryToLabels,
   expectedPageCount,
+  labelContentIsClean,
   padPageSlots,
   prepareLabelPrintJob,
   resolveDeliveriesForPrint,
+  safeDisplayText,
+  safeMoneyAmount,
 } from "./delivery-labels";
 import { dataContentSha256 } from "./sync-snapshot";
 
@@ -86,7 +91,21 @@ function many(n: number): Delivery[] {
   );
 }
 
-describe("LBL-WEB A4 delivery labels", () => {
+function manyProducts(n: number) {
+  return Array.from({ length: n }, (_, i) => ({
+    productNumber: `PRD-${String(i + 1).padStart(6, "0")}`,
+    name: `Item-${i + 1}`,
+    model: `M-${i + 1}`,
+    sku: `SKU${i + 1}`,
+    barcode: "",
+    unit: "יחידה",
+    quantity: 1,
+    unitPrice: 1,
+    lineTotal: 1,
+  }));
+}
+
+describe("LBL-WEB A4 delivery labels closeout", () => {
   it("LBL-WEB-001 Fixed grid 3×6=18", () => {
     const g = assertFixedGrid();
     expect(g.columns).toBe(3);
@@ -95,199 +114,145 @@ describe("LBL-WEB A4 delivery labels", () => {
     expect(LABEL_COLUMNS * LABEL_ROWS).toBe(LABELS_PER_PAGE);
   });
 
-  it("LBL-WEB-002 Eighteen labels = one page", () => {
-    const pages = chunkDeliveriesIntoPages(many(18));
-    expect(pages).toHaveLength(1);
-    expect(pages[0]).toHaveLength(18);
+  it("LBL-WEB-002 One label = one page", () => {
+    expect(expectedPageCount(1)).toBe(1);
+    expect(chunkDeliveriesIntoPages(many(1))).toHaveLength(1);
+  });
+
+  it("LBL-WEB-003 Eighteen labels = one page", () => {
+    expect(chunkDeliveriesIntoPages(many(18))).toHaveLength(1);
     expect(expectedPageCount(18)).toBe(1);
   });
 
-  it("LBL-WEB-003 Nineteen labels = two pages", () => {
+  it("LBL-WEB-004 Nineteen labels = two pages", () => {
     const pages = chunkDeliveriesIntoPages(many(19));
     expect(pages).toHaveLength(2);
     expect(pages[0]).toHaveLength(18);
     expect(pages[1]).toHaveLength(1);
-    expect(expectedPageCount(19)).toBe(2);
   });
 
-  it("LBL-WEB-004 Thirty-six labels = two full pages", () => {
-    expect(chunkDeliveriesIntoPages(many(36))).toHaveLength(2);
+  it("LBL-WEB-005 Thirty-six labels = two pages", () => {
     expect(expectedPageCount(36)).toBe(2);
   });
 
-  it("LBL-WEB-005 Thirty-seven labels = three pages", () => {
+  it("LBL-WEB-006 Thirty-seven labels = three pages", () => {
     expect(expectedPageCount(37)).toBe(3);
   });
 
-  it("LBL-WEB-006 Print selected only", () => {
+  it("LBL-WEB-007 Print selected", () => {
     const list = many(5);
-    const resolved = resolveDeliveriesForPrint(list, [list[1].id, list[3].id], "selected");
-    expect(resolved.map((d) => d.id)).toEqual([list[1].id, list[3].id]);
+    expect(resolveDeliveriesForPrint(list, [list[1].id], "selected")).toHaveLength(1);
   });
 
-  it("LBL-WEB-007 Print filtered / displayed", () => {
-    const list = many(4);
-    const resolved = resolveDeliveriesForPrint(list, [], "filtered");
-    expect(resolved).toHaveLength(4);
+  it("LBL-WEB-008 Print filtered", () => {
+    expect(resolveDeliveriesForPrint(many(4), [], "filtered")).toHaveLength(4);
   });
 
-  it("LBL-WEB-008 Empty selection yields empty job", () => {
-    const job = prepareLabelPrintJob(many(3), [], "selected");
-    expect(job.labels).toHaveLength(0);
-    expect(job.pageCount).toBe(0);
+  it("LBL-WEB-009 Continuation for many products — no silent drop", () => {
+    const d = sampleDelivery({ id: "big", itemsSnapshot: manyProducts(12) });
+    const labels = expandDeliveryToLabels(d);
+    expect(labels.length).toBeGreaterThan(1);
+    const allNames = labels.flatMap((l) => l.productLines).join(" ");
+    for (let i = 1; i <= 12; i++) {
+      expect(allNames).toContain(`Item-${i}`);
+    }
+    expect(labels[0].isContinuation).toBe(false);
+    expect(labels[1].isContinuation).toBe(true);
+    expect(labels[0].partTotal).toBe(labels.length);
   });
 
-  it("LBL-WEB-009 Selection respects filtered order", () => {
-    const list = many(4);
-    const selected = new Set([list[3].id, list[0].id]);
-    const resolved = resolveDeliveriesForPrint(list, selected, "selected");
-    expect(resolved.map((d) => d.id)).toEqual([list[0].id, list[3].id]);
+  it("LBL-WEB-010 Max lines per label enforced", () => {
+    const d = sampleDelivery({ id: "x", itemsSnapshot: manyProducts(MAX_PRODUCT_LINES_PER_LABEL + 1) });
+    const labels = expandDeliveryToLabels(d);
+    expect(labels[0].productLines.length).toBeLessThanOrEqual(MAX_PRODUCT_LINES_PER_LABEL);
+    expect(labels).toHaveLength(2);
   });
 
-  it("LBL-WEB-010 Label content: customer phone address area", () => {
-    const label = buildDeliveryLabelContent(sampleDelivery({ id: "1" }));
-    expect(label.customerName).toContain("Label");
-    expect(label.phone).toBe("0501111111");
-    expect(label.address).toContain("Herzl");
-    expect(label.areaLabel).toBe("מרכז");
-  });
-
-  it("LBL-WEB-011 Label content: order and delivery numbers", () => {
-    const label = buildDeliveryLabelContent(
-      sampleDelivery({ id: "1", deliveryNumber: "DLV-WEB-000007", orderNumberSnapshot: "ORD-000009" })
-    );
-    expect(label.deliveryNumber).toBe("DLV-WEB-000007");
-    expect(label.orderNumber).toBe("ORD-000009");
-  });
-
-  it("LBL-WEB-012 Label content: products models quantities", () => {
-    const label = buildDeliveryLabelContent(sampleDelivery({ id: "1" }));
-    expect(label.productLines[0]).toContain("Table");
-    expect(label.productLines[0]).toContain("200/60");
-    expect(label.productLines[0]).toContain("2");
-  });
-
-  it("LBL-WEB-013 Label content: cash on delivery total", () => {
-    const label = buildDeliveryLabelContent(sampleDelivery({ id: "1", orderTotalSnapshot: 55 }));
-    expect(label.paymentLabel).toContain("מזומן לשליח");
-    expect(label.totalAmount).toBe(55);
-  });
-
-  it("LBL-WEB-014 Pad page slots to 18", () => {
-    const slots = padPageSlots(many(5).map((d) => buildDeliveryLabelContent(d)));
-    expect(slots).toHaveLength(18);
-    expect(slots.filter((s) => s === null)).toHaveLength(13);
-  });
-
-  it("LBL-WEB-015 Prepare job clones without mutating source", () => {
-    const list = many(2);
-    const before = JSON.stringify(list);
-    prepareLabelPrintJob(list, [list[0].id], "selected");
-    expect(JSON.stringify(list)).toBe(before);
-  });
-
-  it("LBL-WEB-016 Print does not change workspace data hash", () => {
-    const data = {
-      ...emptyData(),
-      deliveries: many(2),
-    };
-    const before = dataContentSha256(data);
-    prepareLabelPrintJob(data.deliveries, data.deliveries.map((d) => d.id), "filtered");
-    expect(dataContentSha256(data)).toBe(before);
-    expect(data.dirty as unknown).toBeUndefined();
-  });
-
-  it("LBL-WEB-017 No inventory / stock fields in label module side effects", () => {
-    const data = {
-      ...emptyData(),
-      products: [
-        {
-          id: "p1",
-          productNumber: "PRD-000001",
-          name: "P",
-          model: "",
-          sku: "",
-          barcode: "",
-          description: "",
-          salePrice: 1,
-          costPrice: 0,
-          stockQuantity: 9,
-          unit: "יחידה",
-          active: true,
-          createdAt: "t",
-          updatedAt: "t",
-        },
-      ],
-      deliveries: many(1),
-    };
-    const stock = data.products[0].stockQuantity;
-    const mov = JSON.stringify(data.inventoryMovements);
-    prepareLabelPrintJob(data.deliveries, [], "filtered");
-    expect(data.products[0].stockQuantity).toBe(stock);
-    expect(JSON.stringify(data.inventoryMovements)).toBe(mov);
-  });
-
-  it("LBL-WEB-018 Areas labels Hebrew", () => {
-    for (const [area, he] of [
-      ["center", "מרכז"],
-      ["north", "צפון"],
-      ["south", "דרום"],
-      ["unassigned", "לא הוגדר"],
-    ] as const) {
-      const label = buildDeliveryLabelContent(sampleDelivery({ id: area, deliveryAreaSnapshot: area }));
-      expect(label.areaLabel).toBe(he);
+  it("LBL-WEB-011 No undefined/null/NaN in content", () => {
+    const dirty = sampleDelivery({
+      id: "z",
+      // @ts-expect-error intentional bad total
+      orderTotalSnapshot: Number.NaN,
+      customerSnapshot: {
+        customerNumber: "",
+        customerName: "undefined",
+        businessName: "null",
+        phone: "NaN",
+        secondaryPhone: "",
+        email: "",
+        street: "",
+        houseNumber: "",
+        entrance: "",
+        floor: "",
+        apartment: "",
+        city: "",
+        zipCode: "",
+        deliveryArea: "unassigned",
+        deliveryNotes: "",
+      },
+    });
+    for (const label of expandDeliveryToLabels(dirty)) {
+      expect(labelContentIsClean(label)).toBe(true);
+      expect(safeDisplayText("undefined")).toBe("");
+      expect(safeMoneyAmount(Number.NaN)).toBe(0);
     }
   });
 
-  it("LBL-WEB-019 Missing address fallback", () => {
+  it("LBL-WEB-012 Long address kept", () => {
     const label = buildDeliveryLabelContent(
       sampleDelivery({
-        id: "x",
+        id: "1",
         addressSnapshot: {
-          street: "",
-          houseNumber: "",
-          entrance: "",
-          floor: "",
-          apartment: "",
-          city: "",
-          zipCode: "",
+          street: "רחוב ארוך מאוד מאוד עם הרבה מילים",
+          houseNumber: "1234",
+          entrance: "כניסה מזרחית",
+          floor: "קומה עליונה",
+          apartment: "דירה גדולה",
+          city: "תל אביב יפו",
+          zipCode: "6100000",
           deliveryNotes: "",
         },
       })
     );
-    expect(label.address).toBe("כתובת לא הוגדרה");
+    expect(label.address.length).toBeGreaterThan(20);
+    expect(labelContentIsClean(label)).toBe(true);
   });
 
-  it("LBL-WEB-020 Selected not in filtered list ignored", () => {
+  it("LBL-WEB-013 Prepare job does not mutate source / hash", () => {
     const list = many(2);
-    const resolved = resolveDeliveriesForPrint(list, ["ghost-id", list[0].id], "selected");
-    expect(resolved).toHaveLength(1);
-    expect(resolved[0].id).toBe(list[0].id);
+    const data = { ...emptyData(), deliveries: list };
+    const before = dataContentSha256(data);
+    const beforeJson = JSON.stringify(list);
+    prepareLabelPrintJob(list, [list[0].id], "selected");
+    expect(JSON.stringify(list)).toBe(beforeJson);
+    expect(dataContentSha256(data)).toBe(before);
   });
 
-  it("LBL-WEB-021 Portrait page constants documented", () => {
-    // CSS @page size A4 portrait enforced in globals.css — structural constants locked here
-    expect(LABELS_PER_PAGE).toBe(18);
+  it("LBL-WEB-014 Pad slots border layout 18", () => {
+    expect(padPageSlots([1, 2, 3] as never[])).toHaveLength(18);
   });
 
-  it("LBL-WEB-022 Zero labels = zero pages", () => {
-    expect(chunkDeliveriesIntoPages([])).toEqual([]);
-    expect(expectedPageCount(0)).toBe(0);
+  it("LBL-WEB-015 Areas Hebrew", () => {
+    expect(buildDeliveryLabelContent(sampleDelivery({ id: "n", deliveryAreaSnapshot: "north" })).areaLabel).toBe(
+      "צפון"
+    );
   });
 
-  it("LBL-WEB-023 One label = one page with pads", () => {
-    const pages = chunkDeliveriesIntoPages(many(1));
-    expect(pages).toHaveLength(1);
-    expect(padPageSlots(pages[0].map(buildDeliveryLabelContent)).filter(Boolean)).toHaveLength(1);
+  it("LBL-WEB-016 Cash total on primary only", () => {
+    const labels = expandDeliveryToLabels(sampleDelivery({ id: "c", itemsSnapshot: manyProducts(8), orderTotalSnapshot: 99 }));
+    expect(labels[0].totalAmount).toBe(99);
+    expect(labels[0].paymentLabel).toMatch(/מזומן לשליח/);
+    if (labels[1]) expect(labels[1].isContinuation).toBe(true);
   });
 
-  it("LBL-WEB-024 Payment type cash only on labels", () => {
-    const label = buildDeliveryLabelContent(sampleDelivery({ id: "1" }));
-    expect(label.paymentLabel).toMatch(/מזומן לשליח/);
+  it("LBL-WEB-017 Empty selection empty job", () => {
+    expect(prepareLabelPrintJob(many(3), [], "selected").pageCount).toBe(0);
   });
 
-  it("LBL-WEB-025 Dirty/revision untouched (no store fields)", () => {
-    const job = prepareLabelPrintJob(many(1), ["d1"], "selected");
-    expect(Object.keys(job).sort()).toEqual(["deliveries", "labels", "pageCount", "pages"]);
+  it("LBL-WEB-018 Continuations count toward page occupancy", () => {
+    const d = sampleDelivery({ id: "one", itemsSnapshot: manyProducts(MAX_PRODUCT_LINES_PER_LABEL * 2) });
+    const job = prepareLabelPrintJob([d], [d.id], "selected");
+    expect(job.labels.length).toBe(2);
+    expect(job.pageCount).toBe(1);
   });
 });

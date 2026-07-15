@@ -113,6 +113,13 @@ button {
   margin: 0;
 }
 
+.delivery-label-cont {
+  margin: 0;
+  font-size: 6.5pt;
+  font-weight: 700;
+  color: #333;
+}
+
 .delivery-label-phone,
 .delivery-label-address,
 .delivery-label-area {

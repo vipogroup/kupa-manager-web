@@ -1,16 +1,40 @@
 # Kupa Manager Web
 
-ממשק נייד (RTL) לניהול הכנסות, הוצאות, לקוחות ומוצרים — לפריסה ב-Vercel.
+ממשק Web (RTL) לניהול קופה, לקוחות, מוצרים, הזמנות, מלאי בסיסי, משלוחים ומדבקות A4 — לפריסה ב-Vercel.
+
+זה אינו עותק מלא של מערכת Windows.
 
 ## הרצה מקומית
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
+בדיקות ובנייה:
+
+```bash
+npm test
+npm run lint
+npm run build
+```
+
+## Authentication
+
+יש מסך `/login`. בפרודקשן נדרשים (שמות משתנים בלבד):
+
+- `KUPA_ADMIN_USERNAME`
+- `KUPA_ADMIN_PASSWORD_HASH`
+- `KUPA_SESSION_SECRET`
+- `KUPA_WORKSPACE_NAMESPACE_SECRET`
+- `KUPA_PRIVATE_READ_WRITE_TOKEN`
+
+אין Public Blob Store בפרודקשן.
+
 ## סנכרון בין מכשירים
 
-במסך **סנכרון**: שמרו את קוד הסביבה, לחצו **שמור לענן**, ובמכשיר אחר **טען מהענן**.
+במסך **סנכרון**: שמור לענן / טען מהענן / רענון. אין סנכרון בזמן אמת. שמירה עם revision ישן מחזירה 409.
 
-בפרודקשן נדרש `BLOB_READ_WRITE_TOKEN` (Vercel Blob).
+## תיעוד מסירה
+
+ראה `docs/KUPA-MANAGER-WEB-FINAL-HANDOVER.md`.

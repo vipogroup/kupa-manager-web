@@ -57,6 +57,11 @@ function LabelBody({ label }: { label: DeliveryLabelContent }) {
   const phones = [label.phone, label.secondaryPhone].filter(Boolean).join(" · ");
   return (
     <div className="delivery-label-body" data-testid="lbl-body">
+      {label.isContinuation ? (
+        <p className="delivery-label-cont" data-testid="lbl-continuation">
+          המשך {label.partIndex}/{label.partTotal}
+        </p>
+      ) : null}
       <div className="delivery-label-row delivery-label-nums" dir="ltr">
         <span data-testid="lbl-delivery-number">{label.deliveryNumber}</span>
         <span data-testid="lbl-order-number">{label.orderNumber}</span>
@@ -69,13 +74,17 @@ function LabelBody({ label }: { label: DeliveryLabelContent }) {
           {phones}
         </p>
       ) : null}
-      <p className="delivery-label-address" data-testid="lbl-address">
-        {label.address}
-      </p>
-      <p className="delivery-label-area" data-testid="lbl-area">
-        אזור: {label.areaLabel}
-        {label.scheduledDate ? ` · ${formatScheduledDateDisplay(label.scheduledDate)}` : ""}
-      </p>
+      {label.address ? (
+        <p className="delivery-label-address" data-testid="lbl-address">
+          {label.address}
+        </p>
+      ) : null}
+      {label.areaLabel ? (
+        <p className="delivery-label-area" data-testid="lbl-area">
+          אזור: {label.areaLabel}
+          {label.scheduledDate ? ` · ${formatScheduledDateDisplay(label.scheduledDate)}` : ""}
+        </p>
+      ) : null}
       <ul className="delivery-label-products" data-testid="lbl-products">
         {label.productLines.map((line, i) => (
           <li key={i}>{line}</li>
@@ -83,7 +92,7 @@ function LabelBody({ label }: { label: DeliveryLabelContent }) {
       </ul>
       <p className="delivery-label-total" data-testid="lbl-total">
         <span>{label.paymentLabel}</span>
-        <strong>{formatMoney(label.totalAmount)}</strong>
+        {!label.isContinuation ? <strong>{formatMoney(label.totalAmount)}</strong> : null}
       </p>
     </div>
   );

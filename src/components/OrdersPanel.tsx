@@ -173,10 +173,6 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
     const drafts = all.filter((o) => o.status === "draft").length;
     const confirmed = all.filter((o) => o.status === "confirmed");
     const cancelled = all.filter((o) => o.status === "cancelled").length;
-    const confirmedTotal = calcOrderTotal(
-      confirmed.flatMap((o) => o.items)
-    );
-    // better: sum order totals
     const confirmedSum = confirmed.reduce((a, o) => a + (o.totalAmount || 0), 0);
     return {
       all: all.length,
