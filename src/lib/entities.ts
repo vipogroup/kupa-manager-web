@@ -7,6 +7,7 @@ import {
   Product,
   emptyData,
 } from "./types";
+import { normalizeOrdersInData } from "./orders";
 
 export const CUSTOMER_TYPES: CustomerType[] = ["private", "business"];
 export const DELIVERY_AREAS: DeliveryArea[] = ["unassigned", "center", "north", "south"];
@@ -218,13 +219,16 @@ export function normalizeAppDataEntities(data: AppData): AppData {
   const customers = (data.customers || []).map((c, i) => normalizeCustomer(c, i));
   const products = (data.products || []).map((p, i) => normalizeProduct(p, i));
   const counters = resolveCounters({ ...data, customers, products });
-  return {
+  const withEntities: AppData = {
     ...data,
     customers,
     products,
+    orders: Array.isArray(data.orders) ? data.orders : [],
     customerCounter: counters.customerCounter,
     productCounter: counters.productCounter,
+    counters: data.counters || { nextOrderNumber: 0 },
   };
+  return normalizeOrdersInData(withEntities);
 }
 
 export type CustomerInput = Omit<Customer, "id" | "customerNumber" | "createdAt" | "updatedAt"> & {

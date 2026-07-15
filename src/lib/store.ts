@@ -7,6 +7,7 @@ import {
   AppData,
   Customer,
   MoneyRecord,
+  Order,
   Product,
   emptyData,
 } from "./types";
@@ -21,6 +22,14 @@ import {
   type CustomerInput,
   type ProductInput,
 } from "./entities";
+import {
+  allocateOrder,
+  buildCopiedOrderDraft,
+  cancelOrderInData,
+  confirmOrderInData,
+  updateOrderInData,
+  type OrderDraftInput,
+} from "./orders";
 
 export type SyncUiStatus =
   | "clean"
@@ -69,9 +78,16 @@ type Store = AppData & {
     patch: Partial<Product>
   ) => { ok: true; product: Product } | { ok: false; error: string };
   setProductActive: (id: string, active: boolean) => { ok: true } | { ok: false; error: string };
+  createOrder: (input: OrderDraftInput) => { ok: true; order: Order } | { ok: false; error: string };
+  updateOrder: (
+    id: string,
+    patch: Partial<OrderDraftInput>
+  ) => { ok: true; order: Order } | { ok: false; error: string };
+  confirmOrder: (id: string) => { ok: true; order: Order } | { ok: false; error: string };
+  cancelOrder: (id: string, reason: string) => { ok: true; order: Order } | { ok: false; error: string };
+  copyOrder: (id: string) => { ok: true; order: Order } | { ok: false; error: string };
   replaceAll: (data: AppData) => void;
   touch: () => void;
-  /** Snapshot of business fields for entity helpers */
   asAppData: () => AppData;
 };
 
@@ -99,10 +115,20 @@ function toAppData(s: AppData): AppData {
     expenses: s.expenses,
     customers: s.customers,
     products: s.products,
+    orders: s.orders || [],
     updatedAt: s.updatedAt,
     customerCounter: s.customerCounter ?? 0,
     productCounter: s.productCounter ?? 0,
+    counters: s.counters || { nextOrderNumber: 0 },
   };
+}
+
+function applyOrdersPatch(result: AppData) {
+  return withDirty({
+    orders: result.orders,
+    counters: result.counters,
+    updatedAt: result.updatedAt,
+  });
 }
 
 export const useKupaStore = create<Store>()(
@@ -227,6 +253,39 @@ export const useKupaStore = create<Store>()(
         );
         return { ok: true };
       },
+      createOrder: (input) => {
+        const result = allocateOrder(toAppData(get()), input);
+        if ("error" in result) return { ok: false, error: result.error };
+        set(applyOrdersPatch(result.data));
+        return { ok: true, order: result.order };
+      },
+      updateOrder: (id, patch) => {
+        const result = updateOrderInData(toAppData(get()), id, patch);
+        if ("error" in result) return { ok: false, error: result.error };
+        set(applyOrdersPatch(result.data));
+        return { ok: true, order: result.order };
+      },
+      confirmOrder: (id) => {
+        const result = confirmOrderInData(toAppData(get()), id);
+        if ("error" in result) return { ok: false, error: result.error };
+        set(applyOrdersPatch(result.data));
+        return { ok: true, order: result.order };
+      },
+      cancelOrder: (id, reason) => {
+        const result = cancelOrderInData(toAppData(get()), id, reason);
+        if ("error" in result) return { ok: false, error: result.error };
+        set(applyOrdersPatch(result.data));
+        return { ok: true, order: result.order };
+      },
+      copyOrder: (id) => {
+        const source = (get().orders || []).find((o) => o.id === id);
+        if (!source) return { ok: false, error: "הזמנה לא נמצאה" };
+        const draft = buildCopiedOrderDraft(source);
+        const result = allocateOrder(toAppData(get()), draft);
+        if ("error" in result) return { ok: false, error: result.error };
+        set(applyOrdersPatch(result.data));
+        return { ok: true, order: result.order };
+      },
       replaceAll: (data) => {
         const normalized = normalizeAppDataEntities(data);
         set({
@@ -235,9 +294,11 @@ export const useKupaStore = create<Store>()(
           expenses: normalized.expenses,
           customers: normalized.customers,
           products: normalized.products,
+          orders: normalized.orders || [],
           updatedAt: normalized.updatedAt,
           customerCounter: normalized.customerCounter ?? 0,
           productCounter: normalized.productCounter ?? 0,
+          counters: normalized.counters || { nextOrderNumber: 0 },
           workspaceCode: get().workspaceCode,
         });
       },
@@ -250,9 +311,11 @@ export const useKupaStore = create<Store>()(
         expenses: state.expenses,
         customers: state.customers,
         products: state.products,
+        orders: state.orders || [],
         updatedAt: state.updatedAt,
         customerCounter: state.customerCounter ?? 0,
         productCounter: state.productCounter ?? 0,
+        counters: state.counters || { nextOrderNumber: 0 },
         workspaceCode: state.workspaceCode,
         dirty: state.dirty,
         syncStatus:
@@ -271,8 +334,10 @@ export const useKupaStore = create<Store>()(
         const normalized = normalizeAppDataEntities(toAppData(state));
         state.customers = normalized.customers;
         state.products = normalized.products;
+        state.orders = normalized.orders || [];
         state.customerCounter = normalized.customerCounter;
         state.productCounter = normalized.productCounter;
+        state.counters = normalized.counters || { nextOrderNumber: 0 };
         if (typeof window !== "undefined") {
           localStorage.setItem("kupa-workspace-code", code);
         }

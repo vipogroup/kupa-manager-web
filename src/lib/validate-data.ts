@@ -1,5 +1,6 @@
 import { AppData, emptyData } from "./types";
 import { normalizeAppDataEntities, normalizeCustomer, normalizeProduct } from "./entities";
+import { normalizeOrder } from "./orders";
 
 function isString(v: unknown): v is string {
   return typeof v === "string";
@@ -18,6 +19,9 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
   }
   if (!isString(o.updatedAt)) return { ok: false };
 
+  // Legacy workspaces may omit orders — treat as []
+  if (o.orders !== undefined && !Array.isArray(o.orders)) return { ok: false };
+
   for (const row of o.incomes) {
     if (!row || typeof row !== "object") return { ok: false };
     const r = row as Record<string, unknown>;
@@ -33,14 +37,12 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
     }
   }
 
-  // Customers: accept legacy {id,name,phone,note} or full model — normalize later
   for (const row of o.customers) {
     if (!row || typeof row !== "object") return { ok: false };
     const r = row as Record<string, unknown>;
     if (!isString(r.id)) return { ok: false };
     if (!(isString(r.name) || isString(r.businessName))) return { ok: false };
   }
-  // Products: accept legacy {id,name,price,sku,stock} or full model
   for (const row of o.products) {
     if (!row || typeof row !== "object") return { ok: false };
     const r = row as Record<string, unknown>;
@@ -49,15 +51,24 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
     if (!hasLegacyPrice && r.salePrice !== undefined && !isFiniteNumber(r.salePrice)) return { ok: false };
   }
 
+  const ordersRaw = Array.isArray(o.orders) ? o.orders : [];
+  for (const row of ordersRaw) {
+    if (!row || typeof row !== "object") return { ok: false };
+    const r = row as Record<string, unknown>;
+    if (!isString(r.id)) return { ok: false };
+  }
+
   const known = new Set([
     "version",
     "incomes",
     "expenses",
     "customers",
     "products",
+    "orders",
     "updatedAt",
     "customerCounter",
     "productCounter",
+    "counters",
   ]);
   const rest: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(o)) {
@@ -68,6 +79,16 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
 
   const customers = o.customers.map((c, i) => normalizeCustomer(c, i));
   const products = o.products.map((p, i) => normalizeProduct(p, i));
+  const orders = ordersRaw.map((ord, i) => normalizeOrder(ord, i));
+
+  let counters = { nextOrderNumber: 0 };
+  if (o.counters && typeof o.counters === "object" && !Array.isArray(o.counters)) {
+    const c = o.counters as Record<string, unknown>;
+    counters = {
+      nextOrderNumber:
+        typeof c.nextOrderNumber === "number" && Number.isFinite(c.nextOrderNumber) ? c.nextOrderNumber : 0,
+    };
+  }
 
   const draft: AppData = {
     ...emptyData(),
@@ -77,9 +98,11 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
     expenses: o.expenses as AppData["expenses"],
     customers,
     products,
+    orders,
     updatedAt: o.updatedAt as string,
     customerCounter: typeof o.customerCounter === "number" && Number.isFinite(o.customerCounter) ? o.customerCounter : undefined,
     productCounter: typeof o.productCounter === "number" && Number.isFinite(o.productCounter) ? o.productCounter : undefined,
+    counters,
   };
 
   return { ok: true, data: normalizeAppDataEntities(draft) };

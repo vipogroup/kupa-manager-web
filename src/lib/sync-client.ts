@@ -102,9 +102,11 @@ export async function saveToCloud(code: string): Promise<SyncSaveResult> {
     expenses: store.expenses,
     customers: store.customers,
     products: store.products,
+    orders: store.orders || [],
     updatedAt: store.updatedAt || new Date().toISOString(),
     customerCounter: store.customerCounter ?? 0,
     productCounter: store.productCounter ?? 0,
+    counters: store.counters || { nextOrderNumber: 0 },
   };
   try {
     const res = await fetch("/api/sync", {

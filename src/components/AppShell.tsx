@@ -12,6 +12,7 @@ import type { AppData, TabId } from "@/lib/types";
 import { applyCloudLoad, saveToCloud } from "@/lib/sync-client";
 import { CustomersPanel } from "@/components/CustomersPanel";
 import { ProductsPanel } from "@/components/ProductsPanel";
+import { OrdersPanel } from "@/components/OrdersPanel";
 
 const tabs: { id: TabId; label: string }[] = [
   { id: "home", label: "בית" },
@@ -19,6 +20,7 @@ const tabs: { id: TabId; label: string }[] = [
   { id: "expense", label: "הוצאות" },
   { id: "customers", label: "לקוחות" },
   { id: "products", label: "מוצרים" },
+  { id: "orders", label: "הזמנות" },
   { id: "sync", label: "סנכרון" },
 ];
 
@@ -191,11 +193,12 @@ export function AppShell() {
         )}
         {tab === "customers" && <CustomersPanel />}
         {tab === "products" && <ProductsPanel />}
+        {tab === "orders" && <OrdersPanel />}
         {tab === "sync" && <SyncView />}
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 z-20 border-t border-[var(--line)] bg-[var(--panel)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-        <div className="mx-auto grid max-w-lg grid-cols-6 gap-1 px-1 py-2">
+        <div className="mx-auto grid max-w-lg grid-cols-7 gap-0.5 px-1 py-2">
           {tabs.map((t) => (
             <button
               key={t.id}
