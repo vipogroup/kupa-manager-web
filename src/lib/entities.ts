@@ -317,6 +317,36 @@ export function findDuplicatePhoneCustomers(
   );
 }
 
+/** Potential duplicates by phone (primary) or exact name / business name. */
+export function findPotentialDuplicateCustomers(
+  customers: Customer[],
+  input: { phone?: string; name?: string; businessName?: string },
+  excludeId?: string
+): { byPhone: Customer[]; byNameOrBusiness: Customer[]; all: Customer[] } {
+  const byPhone = findDuplicatePhoneCustomers(customers, input.phone || "", excludeId);
+  const name = String(input.name || "").trim().toLowerCase();
+  const business = String(input.businessName || "").trim().toLowerCase();
+  const byNameOrBusiness = customers.filter((c) => {
+    if (excludeId && c.id === excludeId) return false;
+    if (byPhone.some((d) => d.id === c.id)) return false;
+    const cn = String(c.name || "")
+      .trim()
+      .toLowerCase();
+    const cb = String(c.businessName || "")
+      .trim()
+      .toLowerCase();
+    return (Boolean(name) && cn === name) || (Boolean(business) && cb === business);
+  });
+  const seen = new Set<string>();
+  const all: Customer[] = [];
+  for (const c of [...byPhone, ...byNameOrBusiness]) {
+    if (seen.has(c.id)) continue;
+    seen.add(c.id);
+    all.push(c);
+  }
+  return { byPhone, byNameOrBusiness, all };
+}
+
 export function allocateCustomer(
   data: AppData,
   input: CustomerInput

@@ -15,13 +15,19 @@ import {
   validateOrderDraft,
   type OrderDraftInput,
 } from "@/lib/orders";
-import { deliveryAreaLabel } from "@/lib/entities";
+import {
+  customerTypeLabel,
+  deliveryAreaLabel,
+  emptyCustomerDraft,
+  findPotentialDuplicateCustomers,
+  type CustomerInput,
+} from "@/lib/entities";
 import {
   deliveryStatusLabel,
   findDeliveryForOrder,
   hasAnyDeliveryForOrder,
 } from "@/lib/deliveries";
-import type { Customer, DeliveryArea, Order, OrderItem, Product } from "@/lib/types";
+import type { Customer, CustomerType, DeliveryArea, Order, OrderItem, Product } from "@/lib/types";
 
 type Filter =
   | "all"
@@ -111,6 +117,13 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
   const [confirmExit, setConfirmExit] = useState(false);
   const [confirmEditConfirmed, setConfirmEditConfirmed] = useState(false);
   const [viewOrder, setViewOrder] = useState<Order | null>(null);
+  const [customerPickMode, setCustomerPickMode] = useState<"existing" | "new">("existing");
+  const [customerDraft, setCustomerDraft] = useState<CustomerInput>(emptyCustomerDraft());
+  const [customerMoreOpen, setCustomerMoreOpen] = useState(false);
+  const [savingCustomer, setSavingCustomer] = useState(false);
+  const [dupCustomers, setDupCustomers] = useState<Customer[]>([]);
+  const [dupMatchKind, setDupMatchKind] = useState<"phone" | "identity" | null>(null);
+  const [pendingDupConfirm, setPendingDupConfirm] = useState(false);
 
   const activeCustomers = useMemo(
     () => store.customers.filter((c) => c.active),
@@ -200,6 +213,58 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
     markFormDirty();
   }
 
+  function resetInlineCustomerForm() {
+    setCustomerDraft(emptyCustomerDraft());
+    setCustomerMoreOpen(false);
+    setSavingCustomer(false);
+    setDupCustomers([]);
+    setDupMatchKind(null);
+    setPendingDupConfirm(false);
+  }
+
+  function saveCustomerAndContinue(forceDuplicate = false) {
+    if (savingCustomer) return;
+    setError("");
+    setSavingCustomer(true);
+    try {
+      if (!forceDuplicate) {
+        const dups = findPotentialDuplicateCustomers(store.customers, {
+          phone: customerDraft.phone,
+          name: customerDraft.name,
+          businessName: customerDraft.businessName,
+        });
+        if (dups.all.length > 0) {
+          setDupCustomers(dups.all);
+          setDupMatchKind(dups.byPhone.length > 0 ? "phone" : "identity");
+          setPendingDupConfirm(true);
+          return;
+        }
+      }
+      const res = store.createCustomer(customerDraft);
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      selectCustomer(res.customer);
+      resetInlineCustomerForm();
+      setCustomerPickMode("existing");
+      setError("");
+      setMessage("לקוח נשמר ונבחר להזמנה");
+      setStep(3);
+    } finally {
+      setSavingCustomer(false);
+    }
+  }
+
+  function applyExistingDuplicateCustomer(c: Customer) {
+    selectCustomer(c);
+    resetInlineCustomerForm();
+    setCustomerPickMode("existing");
+    setError("");
+    setMessage("נבחר לקוח קיים");
+    setStep(3);
+  }
+
   function refreshCustomerSnapshot() {
     const c = store.customers.find((x) => x.id === draft.customerId);
     if (!c) {
@@ -265,6 +330,8 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
     setMessage("");
     setMode("form");
     setViewOrder(null);
+    setCustomerPickMode("existing");
+    resetInlineCustomerForm();
   }
 
   function openEdit(o: Order) {
@@ -295,6 +362,8 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
     setMode("form");
     setViewOrder(null);
     setConfirmEditConfirmed(false);
+    setCustomerPickMode("existing");
+    resetInlineCustomerForm();
   }
 
   function requestExit() {
@@ -651,43 +720,313 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
           <p className="mt-1 text-xs text-[var(--muted)]">שלב {step} מתוך 5 · {paymentTypeLabel.cashOnDelivery}</p>
 
           {step === 1 && (
-            <div className="mt-3 space-y-3">
+            <div className="mt-3 space-y-3 overflow-x-hidden" data-testid="order-cust-step">
               <p className="text-sm font-medium">בחירת לקוח</p>
-              <input
-                className="w-full rounded-xl border px-3 py-3"
-                placeholder="חיפוש לקוח"
-                value={customerQuery}
-                onChange={(e) => setCustomerQuery(e.target.value)}
-              />
-              {draft.customerId ? (
-                <div className="rounded-xl border bg-white p-3 text-sm">
-                  <p className="font-semibold">
-                    {draft.customerSnapshot.customerName || draft.customerSnapshot.businessName}
-                  </p>
-                  <p dir="ltr">{draft.customerSnapshot.phone}</p>
-                  {editingId ? (
-                    <button type="button" className="mt-2 text-xs text-[var(--accent)] underline" onClick={refreshCustomerSnapshot}>
-                      רענן פרטי לקוח
-                    </button>
-                  ) : null}
+              {!editingId ? (
+                <div className="grid grid-cols-2 gap-2" data-testid="order-cust-pick-mode">
+                  <button
+                    type="button"
+                    className={`rounded-xl border px-3 py-3 text-sm font-semibold ${
+                      customerPickMode === "existing"
+                        ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                        : "bg-white"
+                    }`}
+                    data-testid="order-cust-existing-option"
+                    onClick={() => {
+                      setCustomerPickMode("existing");
+                      resetInlineCustomerForm();
+                      setError("");
+                    }}
+                  >
+                    בחר לקוח קיים
+                  </button>
+                  <button
+                    type="button"
+                    className={`rounded-xl border px-3 py-3 text-sm font-semibold ${
+                      customerPickMode === "new"
+                        ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                        : "bg-white"
+                    }`}
+                    data-testid="order-cust-new-option"
+                    onClick={() => {
+                      setCustomerPickMode("new");
+                      setError("");
+                    }}
+                  >
+                    צור לקוח חדש
+                  </button>
                 </div>
               ) : null}
-              <ul className="max-h-64 space-y-2 overflow-y-auto">
-                {filteredCustomers.map((c) => (
-                  <li key={c.id}>
-                    <button
-                      type="button"
-                      className="w-full rounded-xl border bg-white px-3 py-3 text-right text-sm"
-                      onClick={() => selectCustomer(c)}
+
+              {customerPickMode === "existing" || editingId ? (
+                <>
+                  <input
+                    className="w-full rounded-xl border px-3 py-3"
+                    placeholder="חיפוש לקוח"
+                    value={customerQuery}
+                    onChange={(e) => setCustomerQuery(e.target.value)}
+                  />
+                  {draft.customerId ? (
+                    <div className="rounded-xl border bg-white p-3 text-sm" data-testid="order-cust-selected">
+                      <p className="font-semibold">
+                        {draft.customerSnapshot.customerName || draft.customerSnapshot.businessName}
+                      </p>
+                      <p dir="ltr">{draft.customerSnapshot.phone}</p>
+                      {editingId ? (
+                        <button
+                          type="button"
+                          className="mt-2 text-xs text-[var(--accent)] underline"
+                          onClick={refreshCustomerSnapshot}
+                        >
+                          רענן פרטי לקוח
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <ul className="max-h-64 space-y-2 overflow-y-auto">
+                    {filteredCustomers.map((c) => (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          className="w-full rounded-xl border bg-white px-3 py-3 text-right text-sm"
+                          onClick={() => selectCustomer(c)}
+                        >
+                          <span className="font-semibold">{c.name || c.businessName}</span>
+                          <span className="mt-1 block text-[var(--muted)]" dir="ltr">
+                            {c.phone}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <div className="space-y-3" data-testid="order-cust-inline-form">
+                  <label className="block text-sm font-medium">
+                    סוג לקוח
+                    <select
+                      className="mt-1 w-full rounded-xl border bg-white px-3 py-3 text-base"
+                      value={customerDraft.customerType || "private"}
+                      onChange={(e) =>
+                        setCustomerDraft((d) => ({
+                          ...d,
+                          customerType: e.target.value as CustomerType,
+                        }))
+                      }
                     >
-                      <span className="font-semibold">{c.name || c.businessName}</span>
-                      <span className="mt-1 block text-[var(--muted)]" dir="ltr">
-                        {c.phone}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+                      <option value="private">{customerTypeLabel.private}</option>
+                      <option value="business">{customerTypeLabel.business}</option>
+                    </select>
+                  </label>
+                  <label className="block text-sm font-medium">
+                    שם לקוח
+                    <input
+                      className="mt-1 w-full rounded-xl border bg-white px-3 py-3 text-base"
+                      value={customerDraft.name || ""}
+                      onChange={(e) => setCustomerDraft((d) => ({ ...d, name: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block text-sm font-medium">
+                    שם עסק
+                    <input
+                      className="mt-1 w-full rounded-xl border bg-white px-3 py-3 text-base"
+                      value={customerDraft.businessName || ""}
+                      onChange={(e) =>
+                        setCustomerDraft((d) => ({ ...d, businessName: e.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="block text-sm font-medium">
+                    טלפון
+                    <input
+                      type="tel"
+                      className="mt-1 w-full rounded-xl border bg-white px-3 py-3 text-base"
+                      value={customerDraft.phone || ""}
+                      onChange={(e) => setCustomerDraft((d) => ({ ...d, phone: e.target.value }))}
+                      dir="ltr"
+                    />
+                  </label>
+                  <label className="block text-sm font-medium">
+                    עיר
+                    <input
+                      className="mt-1 w-full rounded-xl border bg-white px-3 py-3 text-base"
+                      value={customerDraft.city || ""}
+                      onChange={(e) => setCustomerDraft((d) => ({ ...d, city: e.target.value }))}
+                    />
+                  </label>
+                  <label className="block text-sm font-medium">
+                    אזור משלוח
+                    <select
+                      className="mt-1 w-full rounded-xl border bg-white px-3 py-3 text-base"
+                      value={customerDraft.deliveryArea || "unassigned"}
+                      onChange={(e) =>
+                        setCustomerDraft((d) => ({
+                          ...d,
+                          deliveryArea: e.target.value as DeliveryArea,
+                        }))
+                      }
+                    >
+                      <option value="unassigned">{deliveryAreaLabel.unassigned}</option>
+                      <option value="center">{deliveryAreaLabel.center}</option>
+                      <option value="north">{deliveryAreaLabel.north}</option>
+                      <option value="south">{deliveryAreaLabel.south}</option>
+                    </select>
+                  </label>
+
+                  <button
+                    type="button"
+                    className="text-sm font-semibold text-[var(--accent)] underline"
+                    onClick={() => setCustomerMoreOpen((v) => !v)}
+                    data-testid="order-cust-more-fields"
+                  >
+                    {customerMoreOpen ? "הסתר פרטים נוספים" : "פרטים נוספים"}
+                  </button>
+
+                  {customerMoreOpen ? (
+                    <div className="space-y-3">
+                      <label className="block text-sm font-medium">
+                        טלפון נוסף
+                        <input
+                          type="tel"
+                          className="mt-1 w-full rounded-xl border bg-white px-3 py-3 text-base"
+                          value={customerDraft.secondaryPhone || ""}
+                          onChange={(e) =>
+                            setCustomerDraft((d) => ({ ...d, secondaryPhone: e.target.value }))
+                          }
+                          dir="ltr"
+                        />
+                      </label>
+                      <label className="block text-sm font-medium">
+                        דוא״ל
+                        <input
+                          type="email"
+                          className="mt-1 w-full rounded-xl border bg-white px-3 py-3 text-base"
+                          value={customerDraft.email || ""}
+                          onChange={(e) => setCustomerDraft((d) => ({ ...d, email: e.target.value }))}
+                          dir="ltr"
+                        />
+                      </label>
+                      <label className="block text-sm font-medium">
+                        רחוב
+                        <input
+                          className="mt-1 w-full rounded-xl border bg-white px-3 py-3 text-base"
+                          value={customerDraft.street || ""}
+                          onChange={(e) => setCustomerDraft((d) => ({ ...d, street: e.target.value }))}
+                        />
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(
+                          [
+                            ["houseNumber", "מספר בית"],
+                            ["entrance", "כניסה"],
+                            ["floor", "קומה"],
+                            ["apartment", "דירה"],
+                          ] as const
+                        ).map(([key, label]) => (
+                          <label key={key} className="block text-sm font-medium">
+                            {label}
+                            <input
+                              className="mt-1 w-full rounded-xl border bg-white px-3 py-3 text-base"
+                              value={customerDraft[key] || ""}
+                              onChange={(e) =>
+                                setCustomerDraft((d) => ({ ...d, [key]: e.target.value }))
+                              }
+                            />
+                          </label>
+                        ))}
+                      </div>
+                      <label className="block text-sm font-medium">
+                        מיקוד
+                        <input
+                          className="mt-1 w-full rounded-xl border bg-white px-3 py-3 text-base"
+                          value={customerDraft.zipCode || ""}
+                          onChange={(e) =>
+                            setCustomerDraft((d) => ({ ...d, zipCode: e.target.value }))
+                          }
+                          dir="ltr"
+                        />
+                      </label>
+                      <label className="block text-sm font-medium">
+                        הוראות משלוח
+                        <input
+                          className="mt-1 w-full rounded-xl border bg-white px-3 py-3 text-base"
+                          value={customerDraft.deliveryNotes || ""}
+                          onChange={(e) =>
+                            setCustomerDraft((d) => ({ ...d, deliveryNotes: e.target.value }))
+                          }
+                        />
+                      </label>
+                      <label className="block text-sm font-medium">
+                        הערות
+                        <input
+                          className="mt-1 w-full rounded-xl border bg-white px-3 py-3 text-base"
+                          value={customerDraft.notes || ""}
+                          onChange={(e) => setCustomerDraft((d) => ({ ...d, notes: e.target.value }))}
+                        />
+                      </label>
+                    </div>
+                  ) : null}
+
+                  {pendingDupConfirm && dupCustomers.length > 0 ? (
+                    <div
+                      className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm"
+                      data-testid="order-cust-dup-warning"
+                    >
+                      <p className="font-medium">
+                        {dupMatchKind === "phone"
+                          ? "נמצא לקוח קיים עם מספר הטלפון הזה."
+                          : "נמצא לקוח קיים עם שם או שם עסק דומה."}
+                      </p>
+                      <p className="mt-1 text-[var(--muted)]">
+                        {dupCustomers[0].name || dupCustomers[0].businessName} ·{" "}
+                        <span dir="ltr">{dupCustomers[0].phone}</span>
+                      </p>
+                      <div className="mt-3 grid grid-cols-1 gap-2">
+                        <button
+                          type="button"
+                          className="rounded-xl bg-[var(--accent)] py-3 font-semibold text-white disabled:opacity-50"
+                          disabled={savingCustomer}
+                          data-testid="order-cust-use-existing"
+                          onClick={() => applyExistingDuplicateCustomer(dupCustomers[0])}
+                        >
+                          השתמש בלקוח הקיים
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-xl border bg-white py-3 font-semibold"
+                          disabled={savingCustomer}
+                          onClick={() => {
+                            setPendingDupConfirm(false);
+                            setDupCustomers([]);
+                            setDupMatchKind(null);
+                          }}
+                        >
+                          חזור לעריכה
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-xl border border-amber-400 bg-white py-3 font-semibold disabled:opacity-50"
+                          disabled={savingCustomer}
+                          data-testid="order-cust-force-create"
+                          onClick={() => saveCustomerAndContinue(true)}
+                        >
+                          צור בכל זאת
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-white disabled:opacity-50"
+                    disabled={savingCustomer}
+                    data-testid="order-cust-save-continue"
+                    onClick={() => saveCustomerAndContinue(false)}
+                  >
+                    {savingCustomer ? "שומר לקוח…" : "שמור לקוח והמשך להזמנה"}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
