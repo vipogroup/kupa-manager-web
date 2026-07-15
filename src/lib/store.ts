@@ -10,6 +10,17 @@ import {
   Product,
   emptyData,
 } from "./types";
+import {
+  allocateCustomer,
+  allocateProduct,
+  normalizeAppDataEntities,
+  setCustomerActiveInData,
+  setProductActiveInData,
+  updateCustomerInData,
+  updateProductInData,
+  type CustomerInput,
+  type ProductInput,
+} from "./entities";
 
 export type SyncUiStatus =
   | "clean"
@@ -46,12 +57,22 @@ type Store = AppData & {
   addExpense: (input: MoneyInput) => void;
   removeIncome: (id: string) => void;
   removeExpense: (id: string) => void;
-  addCustomer: (input: Omit<Customer, "id">) => void;
-  removeCustomer: (id: string) => void;
-  addProduct: (input: Omit<Product, "id">) => void;
-  removeProduct: (id: string) => void;
+  createCustomer: (input: CustomerInput) => { ok: true; customer: Customer } | { ok: false; error: string };
+  updateCustomer: (
+    id: string,
+    patch: Partial<Customer>
+  ) => { ok: true; customer: Customer } | { ok: false; error: string };
+  setCustomerActive: (id: string, active: boolean) => { ok: true } | { ok: false; error: string };
+  createProduct: (input: ProductInput) => { ok: true; product: Product } | { ok: false; error: string };
+  updateProduct: (
+    id: string,
+    patch: Partial<Product>
+  ) => { ok: true; product: Product } | { ok: false; error: string };
+  setProductActive: (id: string, active: boolean) => { ok: true } | { ok: false; error: string };
   replaceAll: (data: AppData) => void;
   touch: () => void;
+  /** Snapshot of business fields for entity helpers */
+  asAppData: () => AppData;
 };
 
 function stamp(): string {
@@ -71,6 +92,19 @@ function withDirty<T extends Partial<Store>>(patch: T): T & { dirty: true; syncS
   return { ...patch, dirty: true, syncStatus: "dirty" };
 }
 
+function toAppData(s: AppData): AppData {
+  return {
+    version: 1,
+    incomes: s.incomes,
+    expenses: s.expenses,
+    customers: s.customers,
+    products: s.products,
+    updatedAt: s.updatedAt,
+    customerCounter: s.customerCounter ?? 0,
+    productCounter: s.productCounter ?? 0,
+  };
+}
+
 export const useKupaStore = create<Store>()(
   persist(
     (set, get) => ({
@@ -81,6 +115,7 @@ export const useKupaStore = create<Store>()(
       cloudRevision: 0,
       cloudUpdatedAt: "",
       lastError: "",
+      asAppData: () => toAppData(get()),
       hydrateWorkspaceCode: (code) => set({ workspaceCode: code }),
       markDirty: () => set({ dirty: true, syncStatus: "dirty" }),
       setSyncStatus: (status, error) =>
@@ -124,39 +159,88 @@ export const useKupaStore = create<Store>()(
             updatedAt: stamp(),
           })
         ),
-      addCustomer: (input) =>
-        set((s) =>
+      createCustomer: (input) => {
+        const result = allocateCustomer(toAppData(get()), input);
+        if ("error" in result) return { ok: false, error: result.error };
+        set(
           withDirty({
-            customers: [{ id: nanoid(), ...input }, ...s.customers],
-            updatedAt: stamp(),
+            customers: result.data.customers,
+            customerCounter: result.data.customerCounter,
+            updatedAt: result.data.updatedAt,
           })
-        ),
-      removeCustomer: (id) =>
-        set((s) =>
+        );
+        return { ok: true, customer: result.customer };
+      },
+      updateCustomer: (id, patch) => {
+        const result = updateCustomerInData(toAppData(get()), id, patch);
+        if ("error" in result) return { ok: false, error: result.error };
+        set(
           withDirty({
-            customers: s.customers.filter((c) => c.id !== id),
-            updatedAt: stamp(),
+            customers: result.data.customers,
+            updatedAt: result.data.updatedAt,
           })
-        ),
-      addProduct: (input) =>
-        set((s) =>
+        );
+        return { ok: true, customer: result.customer };
+      },
+      setCustomerActive: (id, active) => {
+        const result = setCustomerActiveInData(toAppData(get()), id, active);
+        if ("error" in result) return { ok: false, error: result.error };
+        set(
           withDirty({
-            products: [{ id: nanoid(), ...input }, ...s.products],
-            updatedAt: stamp(),
+            customers: result.data.customers,
+            updatedAt: result.data.updatedAt,
           })
-        ),
-      removeProduct: (id) =>
-        set((s) =>
+        );
+        return { ok: true };
+      },
+      createProduct: (input) => {
+        const result = allocateProduct(toAppData(get()), input);
+        if ("error" in result) return { ok: false, error: result.error };
+        set(
           withDirty({
-            products: s.products.filter((p) => p.id !== id),
-            updatedAt: stamp(),
+            products: result.data.products,
+            productCounter: result.data.productCounter,
+            updatedAt: result.data.updatedAt,
           })
-        ),
-      replaceAll: (data) =>
+        );
+        return { ok: true, product: result.product };
+      },
+      updateProduct: (id, patch) => {
+        const result = updateProductInData(toAppData(get()), id, patch);
+        if ("error" in result) return { ok: false, error: result.error };
+        set(
+          withDirty({
+            products: result.data.products,
+            updatedAt: result.data.updatedAt,
+          })
+        );
+        return { ok: true, product: result.product };
+      },
+      setProductActive: (id, active) => {
+        const result = setProductActiveInData(toAppData(get()), id, active);
+        if ("error" in result) return { ok: false, error: result.error };
+        set(
+          withDirty({
+            products: result.data.products,
+            updatedAt: result.data.updatedAt,
+          })
+        );
+        return { ok: true };
+      },
+      replaceAll: (data) => {
+        const normalized = normalizeAppDataEntities(data);
         set({
-          ...data,
+          version: 1,
+          incomes: normalized.incomes,
+          expenses: normalized.expenses,
+          customers: normalized.customers,
+          products: normalized.products,
+          updatedAt: normalized.updatedAt,
+          customerCounter: normalized.customerCounter ?? 0,
+          productCounter: normalized.productCounter ?? 0,
           workspaceCode: get().workspaceCode,
-        }),
+        });
+      },
     }),
     {
       name: "kupa-manager-web-v1",
@@ -167,13 +251,16 @@ export const useKupaStore = create<Store>()(
         customers: state.customers,
         products: state.products,
         updatedAt: state.updatedAt,
+        customerCounter: state.customerCounter ?? 0,
+        productCounter: state.productCounter ?? 0,
         workspaceCode: state.workspaceCode,
         dirty: state.dirty,
-        syncStatus: state.syncStatus === "saving" || state.syncStatus === "loading"
-          ? state.dirty
-            ? "dirty"
-            : "clean"
-          : state.syncStatus,
+        syncStatus:
+          state.syncStatus === "saving" || state.syncStatus === "loading"
+            ? state.dirty
+              ? "dirty"
+              : "clean"
+            : state.syncStatus,
         cloudRevision: state.cloudRevision,
         cloudUpdatedAt: state.cloudUpdatedAt,
       }),
@@ -181,6 +268,11 @@ export const useKupaStore = create<Store>()(
         if (!state) return;
         const code = state.workspaceCode || ensureWorkspaceCode();
         state.hydrateWorkspaceCode(code);
+        const normalized = normalizeAppDataEntities(toAppData(state));
+        state.customers = normalized.customers;
+        state.products = normalized.products;
+        state.customerCounter = normalized.customerCounter;
+        state.productCounter = normalized.productCounter;
         if (typeof window !== "undefined") {
           localStorage.setItem("kupa-workspace-code", code);
         }
@@ -197,7 +289,7 @@ export function formatMoney(n: number): string {
   return new Intl.NumberFormat("he-IL", {
     style: "currency",
     currency: "ILS",
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(n || 0);
 }
 

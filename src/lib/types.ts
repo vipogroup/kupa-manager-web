@@ -8,19 +8,48 @@ export type MoneyRecord = {
   customerId?: string;
 };
 
+export type CustomerType = "private" | "business";
+export type DeliveryArea = "unassigned" | "center" | "north" | "south";
+
 export type Customer = {
   id: string;
+  customerNumber: string;
+  customerType: CustomerType;
   name: string;
+  businessName: string;
   phone: string;
-  note: string;
+  secondaryPhone: string;
+  email: string;
+  street: string;
+  houseNumber: string;
+  entrance: string;
+  floor: string;
+  apartment: string;
+  city: string;
+  zipCode: string;
+  deliveryArea: DeliveryArea;
+  deliveryNotes: string;
+  notes: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type Product = {
   id: string;
+  productNumber: string;
   name: string;
-  price: number;
+  model: string;
   sku: string;
-  stock: number;
+  barcode: string;
+  description: string;
+  salePrice: number;
+  costPrice: number;
+  stockQuantity: number;
+  unit: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type AppData = {
@@ -30,6 +59,8 @@ export type AppData = {
   customers: Customer[];
   products: Product[];
   updatedAt: string;
+  customerCounter?: number;
+  productCounter?: number;
 };
 
 export type TabId = "home" | "income" | "expense" | "customers" | "products" | "sync";
@@ -42,5 +73,7 @@ export function emptyData(): AppData {
     customers: [],
     products: [],
     updatedAt: new Date().toISOString(),
+    customerCounter: 0,
+    productCounter: 0,
   };
 }

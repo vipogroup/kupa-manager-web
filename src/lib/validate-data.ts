@@ -1,4 +1,5 @@
 import { AppData, emptyData } from "./types";
+import { normalizeAppDataEntities, normalizeCustomer, normalizeProduct } from "./entities";
 
 function isString(v: unknown): v is string {
   return typeof v === "string";
@@ -31,37 +32,55 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
       return { ok: false };
     }
   }
+
+  // Customers: accept legacy {id,name,phone,note} or full model — normalize later
   for (const row of o.customers) {
     if (!row || typeof row !== "object") return { ok: false };
     const r = row as Record<string, unknown>;
-    if (!isString(r.id) || !isString(r.name) || !isString(r.phone) || !isString(r.note)) return { ok: false };
+    if (!isString(r.id)) return { ok: false };
+    if (!(isString(r.name) || isString(r.businessName))) return { ok: false };
   }
+  // Products: accept legacy {id,name,price,sku,stock} or full model
   for (const row of o.products) {
     if (!row || typeof row !== "object") return { ok: false };
     const r = row as Record<string, unknown>;
-    if (!isString(r.id) || !isString(r.name) || !isFiniteNumber(r.price) || !isString(r.sku) || !isFiniteNumber(r.stock)) {
-      return { ok: false };
+    if (!isString(r.id) || !isString(r.name)) return { ok: false };
+    const hasLegacyPrice = isFiniteNumber(r.price) || isFiniteNumber(r.salePrice);
+    if (!hasLegacyPrice && r.salePrice !== undefined && !isFiniteNumber(r.salePrice)) return { ok: false };
+  }
+
+  const known = new Set([
+    "version",
+    "incomes",
+    "expenses",
+    "customers",
+    "products",
+    "updatedAt",
+    "customerCounter",
+    "productCounter",
+  ]);
+  const rest: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(o)) {
+    if (!known.has(k) && k !== "__proto__" && k !== "constructor" && k !== "prototype") {
+      rest[k] = v;
     }
   }
 
-  // Preserve unknown top-level fields for forward compatibility (no destructive strip).
-  const known = new Set(["version", "incomes", "expenses", "customers", "products", "updatedAt"]);
-  const rest: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(o)) {
-    if (!known.has(k)) rest[k] = v;
-  }
+  const customers = o.customers.map((c, i) => normalizeCustomer(c, i));
+  const products = o.products.map((p, i) => normalizeProduct(p, i));
 
-  return {
-    ok: true,
-    data: {
-      ...emptyData(),
-      ...rest,
-      version: 1,
-      incomes: o.incomes as AppData["incomes"],
-      expenses: o.expenses as AppData["expenses"],
-      customers: o.customers as AppData["customers"],
-      products: o.products as AppData["products"],
-      updatedAt: o.updatedAt as string,
-    } as AppData,
+  const draft: AppData = {
+    ...emptyData(),
+    ...rest,
+    version: 1,
+    incomes: o.incomes as AppData["incomes"],
+    expenses: o.expenses as AppData["expenses"],
+    customers,
+    products,
+    updatedAt: o.updatedAt as string,
+    customerCounter: typeof o.customerCounter === "number" && Number.isFinite(o.customerCounter) ? o.customerCounter : undefined,
+    productCounter: typeof o.productCounter === "number" && Number.isFinite(o.productCounter) ? o.productCounter : undefined,
   };
+
+  return { ok: true, data: normalizeAppDataEntities(draft) };
 }

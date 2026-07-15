@@ -10,6 +10,8 @@ import {
 } from "@/lib/store";
 import type { AppData, TabId } from "@/lib/types";
 import { applyCloudLoad, saveToCloud } from "@/lib/sync-client";
+import { CustomersPanel } from "@/components/CustomersPanel";
+import { ProductsPanel } from "@/components/ProductsPanel";
 
 const tabs: { id: TabId; label: string }[] = [
   { id: "home", label: "בית" },
@@ -187,20 +189,8 @@ export function AppShell() {
             onRemove={store.removeExpense}
           />
         )}
-        {tab === "customers" && (
-          <CustomersView
-            rows={store.customers}
-            onAdd={store.addCustomer}
-            onRemove={store.removeCustomer}
-          />
-        )}
-        {tab === "products" && (
-          <ProductsView
-            rows={store.products}
-            onAdd={store.addProduct}
-            onRemove={store.removeProduct}
-          />
-        )}
+        {tab === "customers" && <CustomersPanel />}
+        {tab === "products" && <ProductsPanel />}
         {tab === "sync" && <SyncView />}
       </main>
 
@@ -374,129 +364,6 @@ function MoneyView({
                 onClick={() => onRemove(r.id)}
                 className="mt-2 text-xs text-[var(--muted)] underline"
               >
-                מחק
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function CustomersView({
-  rows,
-  onAdd,
-  onRemove,
-}: {
-  rows: AppData["customers"];
-  onAdd: (input: { name: string; phone: string; note: string }) => void;
-  onRemove: (id: string) => void;
-}) {
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [note, setNote] = useState("");
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim()) return;
-    onAdd({ name: name.trim(), phone: phone.trim(), note: note.trim() });
-    setName("");
-    setPhone("");
-    setNote("");
-  }
-
-  return (
-    <div className="space-y-4">
-      <form onSubmit={submit} className="space-y-3 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
-        <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">לקוח חדש</h2>
-        <Field label="שם" value={name} onChange={setName} />
-        <Field label="טלפון" value={phone} onChange={setPhone} type="tel" />
-        <Field label="הערה" value={note} onChange={setNote} />
-        <button type="submit" className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-white">
-          שמירה
-        </button>
-      </form>
-      <ListEmpty empty={rows.length === 0} text="אין לקוחות עדיין" />
-      <ul className="space-y-2">
-        {rows.map((c) => (
-          <li key={c.id} className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="font-semibold">{c.name}</p>
-                <p className="text-sm text-[var(--muted)]" dir="ltr">
-                  {c.phone || "ללא טלפון"}
-                </p>
-                {c.note ? <p className="mt-1 text-sm">{c.note}</p> : null}
-              </div>
-              <button type="button" onClick={() => onRemove(c.id)} className="text-xs text-[var(--muted)] underline">
-                מחק
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function ProductsView({
-  rows,
-  onAdd,
-  onRemove,
-}: {
-  rows: AppData["products"];
-  onAdd: (input: { name: string; price: number; sku: string; stock: number }) => void;
-  onRemove: (id: string) => void;
-}) {
-  const [name, setName] = useState("");
-  const [price, setPrice] = useState("");
-  const [sku, setSku] = useState("");
-  const [stock, setStock] = useState("0");
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    const p = Number(price);
-    const s = Number(stock);
-    if (!name.trim() || !Number.isFinite(p) || p < 0) return;
-    onAdd({
-      name: name.trim(),
-      price: p,
-      sku: sku.trim(),
-      stock: Number.isFinite(s) ? s : 0,
-    });
-    setName("");
-    setPrice("");
-    setSku("");
-    setStock("0");
-  }
-
-  return (
-    <div className="space-y-4">
-      <form onSubmit={submit} className="space-y-3 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
-        <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">מוצר חדש</h2>
-        <Field label="שם מוצר" value={name} onChange={setName} />
-        <Field label="מחיר" value={price} onChange={setPrice} type="number" />
-        <Field label="מק״ט" value={sku} onChange={setSku} />
-        <Field label="מלאי" value={stock} onChange={setStock} type="number" />
-        <button type="submit" className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-white">
-          שמירה
-        </button>
-      </form>
-      <ListEmpty empty={rows.length === 0} text="אין מוצרים עדיין" />
-      <ul className="space-y-2">
-        {rows.map((p) => (
-          <li key={p.id} className="flex items-start justify-between gap-3 rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-3">
-            <div>
-              <p className="font-semibold">{p.name}</p>
-              <p className="text-sm text-[var(--muted)]">
-                {p.sku ? `מק״ט ${p.sku} · ` : ""}
-                מלאי {p.stock}
-              </p>
-            </div>
-            <div className="text-left">
-              <p className="font-semibold">{formatMoney(p.price)}</p>
-              <button type="button" onClick={() => onRemove(p.id)} className="mt-2 text-xs text-[var(--muted)] underline">
                 מחק
               </button>
             </div>
