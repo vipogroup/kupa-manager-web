@@ -55,13 +55,28 @@ export function AppShell() {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col bg-[var(--bg)] text-[var(--ink)]">
       <header className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--panel)]/95 px-4 pb-3 pt-[max(0.85rem,env(safe-area-inset-top))] backdrop-blur">
-        <p className="text-[0.7rem] font-semibold tracking-[0.18em] text-[var(--accent)]">
-          KUPA MANAGER
-        </p>
-        <h1 className="mt-1 font-[family-name:var(--font-display)] text-2xl font-semibold leading-tight">
-          ניהול הכנסות והוצאות
-        </h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">ממשק נייד לעדכון מכל מקום</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[0.7rem] font-semibold tracking-[0.18em] text-[var(--accent)]">
+              KUPA MANAGER
+            </p>
+            <h1 className="mt-1 font-[family-name:var(--font-display)] text-2xl font-semibold leading-tight">
+              ניהול הכנסות והוצאות
+            </h1>
+            <p className="mt-1 text-sm text-[var(--muted)]">ממשק נייד מאובטח</p>
+          </div>
+          <button
+            type="button"
+            className="mt-1 rounded-xl border border-[var(--line)] px-3 py-2 text-xs font-semibold text-[var(--muted)]"
+            onClick={() => {
+              void fetch("/api/auth/logout", { method: "POST" }).finally(() => {
+                window.location.href = "/login";
+              });
+            }}
+          >
+            יציאה
+          </button>
+        </div>
       </header>
 
       <main className="flex-1 px-4 pb-28 pt-4">
@@ -438,6 +453,10 @@ function SyncView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code, data: payload }),
       });
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "שמירה נכשלה");
       store.hydrateWorkspaceCode(code);
@@ -455,6 +474,10 @@ function SyncView() {
     setStatus("מושך מהענן…");
     try {
       const res = await fetch(`/api/sync?code=${encodeURIComponent(code)}`, { cache: "no-store" });
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "טעינה נכשלה");
       store.replaceAll(json.data);

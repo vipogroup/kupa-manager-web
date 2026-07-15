@@ -1,48 +1,37 @@
-import { head, put } from "@vercel/blob";
-import { promises as fs } from "fs";
-import path from "path";
+import { get, head, list, put } from "@vercel/blob";
 import { AppData, emptyData } from "./types";
+import { workspaceHmacPath } from "./workspace-path";
 
-const LOCAL_DIR = path.join(process.cwd(), ".data");
-
-function blobPath(code: string): string {
-  return `workspaces/${code}.json`;
+function privateToken(): string {
+  const t = process.env.KUPA_PRIVATE_READ_WRITE_TOKEN || "";
+  if (!t) throw new Error("private_blob_token_missing");
+  return t;
 }
 
-function localPath(code: string): string {
-  return path.join(LOCAL_DIR, `${code}.json`);
-}
-
-function hasBlobToken(): boolean {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+export function cloudMode(): "private-blob" {
+  return "private-blob";
 }
 
 export async function readWorkspace(code: string): Promise<AppData | null> {
-  const safe = sanitizeCode(code);
-  if (!safe) return null;
-
-  if (hasBlobToken()) {
-    try {
-      const info = await head(blobPath(safe));
-      const res = await fetch(info.url, { cache: "no-store" });
-      if (!res.ok) return null;
-      return (await res.json()) as AppData;
-    } catch {
-      return null;
-    }
-  }
-
+  const pathname = workspaceHmacPath(code);
+  if (!pathname) return null;
   try {
-    const raw = await fs.readFile(localPath(safe), "utf8");
-    return JSON.parse(raw) as AppData;
+    const result = await get(pathname, {
+      access: "private",
+      token: privateToken(),
+      useCache: false,
+    });
+    if (!result || !result.stream) return null;
+    const text = await new Response(result.stream).text();
+    return JSON.parse(text) as AppData;
   } catch {
     return null;
   }
 }
 
 export async function writeWorkspace(code: string, data: AppData): Promise<void> {
-  const safe = sanitizeCode(code);
-  if (!safe) throw new Error("קוד סביבת עבודה לא תקין");
+  const pathname = workspaceHmacPath(code);
+  if (!pathname) throw new Error("invalid_workspace");
 
   const payload: AppData = {
     ...emptyData(),
@@ -52,24 +41,27 @@ export async function writeWorkspace(code: string, data: AppData): Promise<void>
   };
   const body = JSON.stringify(payload);
 
-  if (hasBlobToken()) {
-    await put(blobPath(safe), body, {
-      access: "public",
-      contentType: "application/json",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-    });
-    return;
+  await put(pathname, body, {
+    access: "private",
+    contentType: "application/json",
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    token: privateToken(),
+  });
+}
+
+export async function workspaceExists(code: string): Promise<boolean> {
+  const pathname = workspaceHmacPath(code);
+  if (!pathname) return false;
+  try {
+    await head(pathname, { token: privateToken() });
+    return true;
+  } catch {
+    return false;
   }
-
-  await fs.mkdir(LOCAL_DIR, { recursive: true });
-  await fs.writeFile(localPath(safe), body, "utf8");
 }
 
-export function sanitizeCode(code: string): string {
-  return (code || "").trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64);
-}
-
-export function cloudMode(): "blob" | "local-file" {
-  return hasBlobToken() ? "blob" : "local-file";
+export async function listPrivateBlobCount(): Promise<number> {
+  const res = await list({ token: privateToken(), limit: 1000 });
+  return res.blobs.length;
 }
