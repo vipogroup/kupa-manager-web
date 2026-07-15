@@ -44,16 +44,24 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
     }
   }
 
+  // Preserve unknown top-level fields for forward compatibility (no destructive strip).
+  const known = new Set(["version", "incomes", "expenses", "customers", "products", "updatedAt"]);
+  const rest: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(o)) {
+    if (!known.has(k)) rest[k] = v;
+  }
+
   return {
     ok: true,
     data: {
       ...emptyData(),
+      ...rest,
       version: 1,
       incomes: o.incomes as AppData["incomes"],
       expenses: o.expenses as AppData["expenses"],
       customers: o.customers as AppData["customers"],
       products: o.products as AppData["products"],
       updatedAt: o.updatedAt as string,
-    },
+    } as AppData,
   };
 }

@@ -9,6 +9,7 @@ import {
   useKupaStore,
 } from "@/lib/store";
 import type { AppData, TabId } from "@/lib/types";
+import { applyCloudLoad, saveToCloud } from "@/lib/sync-client";
 
 const tabs: { id: TabId; label: string }[] = [
   { id: "home", label: "בית" },
@@ -22,23 +23,55 @@ const tabs: { id: TabId; label: string }[] = [
 export function AppShell() {
   const [tab, setTab] = useState<TabId>("home");
   const [ready, setReady] = useState(false);
+  const [pendingDirtyLoad, setPendingDirtyLoad] = useState(false);
+  const [banner, setBanner] = useState("");
   const store = useKupaStore();
 
   useEffect(() => {
-    const unsub = useKupaStore.persist.onFinishHydration(() => {
+    const finish = () => {
       const current = useKupaStore.getState();
       const code = current.workspaceCode || ensureWorkspaceCode();
       if (!current.workspaceCode) current.hydrateWorkspaceCode(code);
       setReady(true);
-    });
-    if (useKupaStore.persist.hasHydrated()) {
-      const current = useKupaStore.getState();
-      const code = current.workspaceCode || ensureWorkspaceCode();
-      if (!current.workspaceCode) current.hydrateWorkspaceCode(code);
-      setReady(true);
-    }
+    };
+    const unsub = useKupaStore.persist.onFinishHydration(finish);
+    if (useKupaStore.persist.hasHydrated()) finish();
     return unsub;
   }, []);
+
+  // Auto-load after login / refresh / app open (no polling).
+  useEffect(() => {
+    if (!ready) return;
+    const code = useKupaStore.getState().workspaceCode;
+    if (!code) return;
+    let cancelled = false;
+    void (async () => {
+      const state = useKupaStore.getState();
+      if (state.dirty) {
+        setPendingDirtyLoad(true);
+        setBanner("קיימים שינויים שלא נשמרו. טעינת הענן תחליף אותם.");
+        return;
+      }
+      const result = await applyCloudLoad(code, true);
+      if (cancelled) return;
+      if (!result.ok && result.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      if (!result.ok) {
+        setBanner(result.error || "טעינה מהענן נכשלה — הנתונים המקומיים נשמרו");
+        return;
+      }
+      if (!result.exists) {
+        setBanner("לא נמצאו נתונים שמורים בענן עבור סביבת העבודה הזאת.");
+        return;
+      }
+      setBanner("נטען מהענן לאחר פתיחה / רענון.");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ready]);
 
   const incomeTotal = useMemo(() => sumAmounts(store.incomes), [store.incomes]);
   const expenseTotal = useMemo(() => sumAmounts(store.expenses), [store.expenses]);
@@ -80,6 +113,54 @@ export function AppShell() {
       </header>
 
       <main className="flex-1 px-4 pb-28 pt-4">
+        {pendingDirtyLoad ? (
+          <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm">
+            <p className="font-medium text-amber-950">קיימים שינויים שלא נשמרו. טעינת הענן תחליף אותם.</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                className="rounded-xl border border-[var(--line)] bg-white py-2 font-semibold"
+                onClick={() => {
+                  setPendingDirtyLoad(false);
+                  setBanner("טעינה מהענן בוטלה — השינויים המקומיים נשמרו");
+                }}
+              >
+                ביטול
+              </button>
+              <button
+                type="button"
+                className="rounded-xl bg-[var(--accent)] py-2 font-semibold text-white"
+                onClick={() => {
+                  void (async () => {
+                    const code = useKupaStore.getState().workspaceCode;
+                    setPendingDirtyLoad(false);
+                    const result = await applyCloudLoad(code, true);
+                    if (!result.ok && result.status === 401) {
+                      window.location.href = "/login";
+                      return;
+                    }
+                    if (!result.ok) {
+                      setBanner(result.error || "טעינה נכשלה");
+                      return;
+                    }
+                    if (!result.exists) {
+                      setBanner("לא נמצאו נתונים שמורים בענן עבור סביבת העבודה הזאת.");
+                      return;
+                    }
+                    setBanner("נטען מהענן בהצלחה");
+                  })();
+                }}
+              >
+                טען מהענן
+              </button>
+            </div>
+          </div>
+        ) : null}
+        {banner ? (
+          <p className="mb-3 rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-2 text-xs text-[var(--muted)]">
+            {banner}
+          </p>
+        ) : null}
         {tab === "home" && (
           <HomeView
             incomeTotal={incomeTotal}
@@ -426,83 +507,143 @@ function ProductsView({
   );
 }
 
+function syncStatusLabel(status: string, dirty: boolean): string {
+  switch (status) {
+    case "saving":
+      return "שמירה מתבצעת…";
+    case "loading":
+      return "טעינה מתבצעת…";
+    case "synced":
+      return "מסונכרן";
+    case "conflict":
+      return "התנגשות בין מכשירים";
+    case "offline":
+      return "אין חיבור לאינטרנט";
+    case "error":
+      return "שגיאה — הנתונים המקומיים נשמרו";
+    case "dirty":
+      return "יש שינויים שלא נשמרו";
+    case "clean":
+      return dirty ? "יש שינויים שלא נשמרו" : "מוכן";
+    default:
+      return status;
+  }
+}
+
 function SyncView() {
   const store = useKupaStore();
   const [code, setCode] = useState(store.workspaceCode);
-  const [status, setStatus] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [confirmLoad, setConfirmLoad] = useState(false);
+  const [conflictOpen, setConflictOpen] = useState(false);
+  const saving = store.syncStatus === "saving";
+  const loading = store.syncStatus === "loading";
 
   useEffect(() => {
     setCode(store.workspaceCode);
   }, [store.workspaceCode]);
 
   async function pushCloud() {
-    setBusy(true);
-    setStatus("שומר לענן…");
-    try {
-      const payload: AppData = {
-        version: 1,
-        incomes: store.incomes,
-        expenses: store.expenses,
-        customers: store.customers,
-        products: store.products,
-        updatedAt: new Date().toISOString(),
-      };
-      const res = await fetch("/api/sync", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, data: payload }),
-      });
-      if (res.status === 401) {
-        window.location.href = "/login";
-        return;
-      }
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "שמירה נכשלה");
-      store.hydrateWorkspaceCode(code);
-      if (typeof window !== "undefined") localStorage.setItem("kupa-workspace-code", code);
-      setStatus(`נשמר בהצלחה (${json.mode})`);
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : "שגיאה");
-    } finally {
-      setBusy(false);
+    setMessage("");
+    const result = await saveToCloud(code);
+    if (!result.ok && result.status === 401) {
+      window.location.href = "/login";
+      return;
     }
+    if (result.ok) {
+      setMessage("שמירה הצליחה");
+      setConflictOpen(false);
+      return;
+    }
+    if (result.conflict) {
+      setConflictOpen(true);
+      setMessage("הנתונים בענן השתנו ממכשיר אחר. טען את הגרסה החדשה לפני שמירה נוספת.");
+      return;
+    }
+    setMessage(result.error || "שמירה נכשלה");
   }
 
-  async function pullCloud() {
-    setBusy(true);
-    setStatus("מושך מהענן…");
-    try {
-      const res = await fetch(`/api/sync?code=${encodeURIComponent(code)}`, { cache: "no-store" });
-      if (res.status === 401) {
-        window.location.href = "/login";
-        return;
-      }
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "טעינה נכשלה");
-      store.replaceAll(json.data);
-      store.hydrateWorkspaceCode(code);
-      if (typeof window !== "undefined") localStorage.setItem("kupa-workspace-code", code);
-      setStatus(json.exists ? `נטען בהצלחה (${json.mode})` : "אין נתונים בענן לקוד הזה — אפשר לשמור עכשיו");
-    } catch (err) {
-      setStatus(err instanceof Error ? err.message : "שגיאה");
-    } finally {
-      setBusy(false);
+  async function pullCloud(force: boolean) {
+    if (!force && store.dirty) {
+      setConfirmLoad(true);
+      return;
     }
+    setConfirmLoad(false);
+    setMessage("");
+    const result = await applyCloudLoad(code, true);
+    if (!result.ok && result.status === 401) {
+      window.location.href = "/login";
+      return;
+    }
+    if (!result.ok) {
+      setMessage(result.error || "טעינה נכשלה — הנתונים המקומיים נשמרו");
+      return;
+    }
+    if (!result.exists) {
+      setMessage("לא נמצאו נתונים שמורים בענן עבור סביבת העבודה הזאת.");
+      return;
+    }
+    setConflictOpen(false);
+    setMessage("טעינה הצליחה");
+  }
+
+  async function refreshStatus() {
+    setMessage("מרענן מצב…");
+    const result = await applyCloudLoad(code, !store.dirty);
+    if (!result.ok && result.error === "DIRTY_CONFIRM_REQUIRED") {
+      setConfirmLoad(true);
+      setMessage("קיימים שינויים שלא נשמרו. טעינת הענן תחליף אותם.");
+      return;
+    }
+    if (!result.ok && result.status === 401) {
+      window.location.href = "/login";
+      return;
+    }
+    if (!result.ok) {
+      setMessage(result.error || "רענון נכשל");
+      return;
+    }
+    if (!result.exists) {
+      setMessage("לא נמצאו נתונים שמורים בענן עבור סביבת העבודה הזאת.");
+      return;
+    }
+    setMessage("מצב עודכן מהענן");
   }
 
   function copyCode() {
     void navigator.clipboard?.writeText(code);
-    setStatus("הקוד הועתק");
+    setMessage("הקוד הועתק");
   }
+
+  const online = typeof navigator === "undefined" ? true : navigator.onLine;
 
   return (
     <div className="space-y-4">
       <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
         <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">סנכרון בין מכשירים</h2>
         <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
-          שמרו את קוד הסביבה בטלפון/מחשב, לחצו ״שמור לענן״ במכשיר אחד ו״טען מהענן״ באחר.
+          שינויים ממכשיר אחר יופיעו לאחר רענון או טעינה מהענן.
         </p>
+
+        <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+          <div className="rounded-xl border border-[var(--line)] bg-white px-3 py-2">
+            <dt className="text-xs text-[var(--muted)]">מצב חיבור</dt>
+            <dd className="font-semibold">{online ? "מחובר" : "לא מחובר"}</dd>
+          </div>
+          <div className="rounded-xl border border-[var(--line)] bg-white px-3 py-2">
+            <dt className="text-xs text-[var(--muted)]">מצב סנכרון</dt>
+            <dd className="font-semibold">{syncStatusLabel(store.syncStatus, store.dirty)}</dd>
+          </div>
+          <div className="rounded-xl border border-[var(--line)] bg-white px-3 py-2">
+            <dt className="text-xs text-[var(--muted)]">שמירה אחרונה בענן</dt>
+            <dd className="font-semibold text-xs break-all">{store.cloudUpdatedAt || "—"}</dd>
+          </div>
+          <div className="rounded-xl border border-[var(--line)] bg-white px-3 py-2">
+            <dt className="text-xs text-[var(--muted)]">revision נוכחי</dt>
+            <dd className="font-semibold">{store.cloudRevision || 0}</dd>
+          </div>
+        </dl>
+
         <label className="mt-4 block text-sm font-medium">
           קוד סביבת עבודה
           <input
@@ -512,10 +653,11 @@ function SyncView() {
             dir="ltr"
           />
         </label>
+
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button
             type="button"
-            disabled={busy || !code}
+            disabled={saving || loading || !code}
             onClick={() => void pushCloud()}
             className="rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-white disabled:opacity-50"
           >
@@ -523,18 +665,69 @@ function SyncView() {
           </button>
           <button
             type="button"
-            disabled={busy || !code}
-            onClick={() => void pullCloud()}
+            disabled={saving || loading || !code}
+            onClick={() => void pullCloud(false)}
             className="rounded-xl border border-[var(--line)] bg-white py-3 text-sm font-semibold disabled:opacity-50"
           >
             טען מהענן
           </button>
         </div>
+        <button
+          type="button"
+          disabled={saving || loading || !code}
+          onClick={() => void refreshStatus()}
+          className="mt-2 w-full rounded-xl border border-[var(--line)] bg-white py-2 text-sm font-semibold disabled:opacity-50"
+        >
+          רענן מצב
+        </button>
         <button type="button" onClick={copyCode} className="mt-2 w-full py-2 text-sm text-[var(--accent)] underline">
           העתק קוד
         </button>
-        {status ? <p className="mt-3 text-sm text-[var(--ink)]">{status}</p> : null}
+
+        {confirmLoad ? (
+          <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">
+            <p>קיימים שינויים שלא נשמרו. טעינת הענן תחליף אותם.</p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button type="button" className="rounded-lg border bg-white py-2" onClick={() => setConfirmLoad(false)}>
+                ביטול
+              </button>
+              <button
+                type="button"
+                className="rounded-lg bg-[var(--accent)] py-2 text-white"
+                onClick={() => void pullCloud(true)}
+              >
+                טען מהענן
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {conflictOpen ? (
+          <div className="mt-3 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm">
+            <p>הנתונים בענן השתנו ממכשיר אחר. טען את הגרסה החדשה לפני שמירה נוספת.</p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button type="button" className="rounded-lg border bg-white py-2" onClick={() => setConflictOpen(false)}>
+                ביטול
+              </button>
+              <button
+                type="button"
+                className="rounded-lg bg-[var(--accent)] py-2 text-white"
+                onClick={() => void pullCloud(true)}
+              >
+                טען מהענן
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {message ? <p className="mt-3 text-sm text-[var(--ink)]">{message}</p> : null}
+        {store.lastError && store.syncStatus === "error" ? (
+          <p className="mt-2 text-xs text-rose-700">{store.lastError}</p>
+        ) : null}
         <p className="mt-3 text-xs text-[var(--muted)]">עודכן מקומית: {store.updatedAt || "—"}</p>
+        {store.dirty ? (
+          <p className="mt-1 text-xs font-semibold text-amber-800">יש שינויים שלא נשמרו</p>
+        ) : null}
       </section>
     </div>
   );

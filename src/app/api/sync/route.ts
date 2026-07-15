@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cloudMode, readWorkspace, writeWorkspace } from "@/lib/cloud";
-import { emptyData } from "@/lib/types";
+import { cloudMode, readWorkspaceSnapshot, saveWorkspaceGuarded } from "@/lib/cloud";
 import { sanitizeCode } from "@/lib/sanitize";
 import { validateAppData } from "@/lib/validate-data";
+import { sanitizeDeviceId } from "@/lib/sync-snapshot";
 import {
   assertJsonContentType,
   jsonError,
@@ -26,14 +26,17 @@ export async function GET(req: NextRequest) {
   if (!code) return jsonError(400, "חסר קוד סביבה");
 
   try {
-    const data = await readWorkspace(code);
-    if (!data) {
+    const result = await readWorkspaceSnapshot(code);
+    if (!result.exists) {
       return securityHeaders(
         NextResponse.json({
           ok: true,
           mode: cloudMode(),
-          data: emptyData(),
           exists: false,
+          revision: null,
+          updatedAt: null,
+          schemaVersion: null,
+          data: null,
         })
       );
     }
@@ -41,8 +44,12 @@ export async function GET(req: NextRequest) {
       NextResponse.json({
         ok: true,
         mode: cloudMode(),
-        data,
         exists: true,
+        revision: result.snapshot.revision,
+        updatedAt: result.snapshot.updatedAt,
+        schemaVersion: result.snapshot.schemaVersion,
+        legacy: result.snapshot.legacy,
+        data: result.snapshot.data,
       })
     );
   } catch {
@@ -66,20 +73,68 @@ export async function PUT(req: NextRequest) {
   const body = await readJsonLimited(req);
   if (!body.ok) return body.response;
 
-  const value = body.value as { code?: unknown; data?: unknown };
+  const value = body.value as {
+    code?: unknown;
+    data?: unknown;
+    baseRevision?: unknown;
+    deviceId?: unknown;
+  };
   const code = sanitizeCode(typeof value.code === "string" ? value.code : "");
   if (!code) return jsonError(400, "חסר קוד סביבה");
+
+  const deviceId = sanitizeDeviceId(value.deviceId);
+  if (!deviceId) return jsonError(400, "מזהה מכשיר לא תקין");
+
+  if (typeof value.baseRevision !== "number" || !Number.isInteger(value.baseRevision) || value.baseRevision < 0) {
+    return jsonError(400, "baseRevision לא תקין");
+  }
 
   const validated = validateAppData(value.data);
   if (!validated.ok) return jsonError(400, "מבנה נתונים לא תקין");
 
   try {
-    await writeWorkspace(code, validated.data);
+    const result = await saveWorkspaceGuarded({
+      code,
+      baseRevision: value.baseRevision,
+      deviceId,
+      data: validated.data,
+    });
+
+    if (!result.ok && result.kind === "conflict") {
+      return securityHeaders(
+        NextResponse.json(
+          {
+            ok: false,
+            error: "CLOUD_VERSION_CHANGED",
+            cloudRevision: result.cloudRevision,
+            cloudUpdatedAt: result.cloudUpdatedAt,
+          },
+          { status: 409 }
+        )
+      );
+    }
+
+    if (!result.ok) {
+      const map: Record<string, string> = {
+        backup_failed: "יצירת גיבוי נכשלה — השמירה בוטלה",
+        write_failed: "שגיאת שמירה",
+        readback_failed: "אימות שמירה נכשל",
+        readback_missing: "אימות שמירה נכשל",
+        readback_revision: "אימות שמירה נכשל",
+        readback_updatedAt: "אימות שמירה נכשל",
+        readback_sha: "אימות שמירה נכשל",
+        cloud_read_failed: "קריאת הענן נכשלה",
+        invalid_workspace: "סביבת עבודה לא תקינה",
+      };
+      return jsonError(500, map[result.message] || "שגיאת שמירה");
+    }
+
     return securityHeaders(
       NextResponse.json({
         ok: true,
         mode: cloudMode(),
-        updatedAt: new Date().toISOString(),
+        revision: result.revision,
+        updatedAt: result.updatedAt,
       })
     );
   } catch {
