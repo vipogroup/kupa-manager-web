@@ -104,12 +104,14 @@ export async function saveToCloud(code: string): Promise<SyncSaveResult> {
     products: store.products,
     orders: store.orders || [],
     inventoryMovements: store.inventoryMovements || [],
+    deliveries: store.deliveries || [],
     updatedAt: store.updatedAt || new Date().toISOString(),
     customerCounter: store.customerCounter ?? 0,
     productCounter: store.productCounter ?? 0,
     counters: {
       nextOrderNumber: store.counters?.nextOrderNumber ?? 0,
       nextInventoryMovementNumber: store.counters?.nextInventoryMovementNumber ?? 0,
+      nextDeliveryNumber: store.counters?.nextDeliveryNumber ?? 0,
     },
   };
   try {

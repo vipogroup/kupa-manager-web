@@ -331,6 +331,7 @@ export function normalizeOrdersInData(data: AppData): AppData {
     orders,
     counters: {
       nextInventoryMovementNumber: data.counters?.nextInventoryMovementNumber ?? 0,
+      nextDeliveryNumber: data.counters?.nextDeliveryNumber ?? 0,
       ...(data.counters || {}),
       nextOrderNumber,
     },
@@ -431,6 +432,7 @@ export function allocateOrder(
       orders: [order, ...(data.orders || [])],
       counters: {
         nextInventoryMovementNumber: data.counters?.nextInventoryMovementNumber ?? 0,
+        nextDeliveryNumber: data.counters?.nextDeliveryNumber ?? 0,
         ...(data.counters || {}),
         nextOrderNumber: next,
       },
@@ -526,6 +528,12 @@ export function cancelOrderInData(
   const existing = (data.orders || []).find((o) => o.id === id);
   if (!existing) return { error: "הזמנה לא נמצאה" };
   if (existing.status === "cancelled") return { error: "ההזמנה כבר מבוטלת" };
+  const activeDelivery = (data.deliveries || []).some(
+    (d) => d.orderId === id && d.status !== "cancelled"
+  );
+  if (activeDelivery) {
+    return { error: "יש לבטל תחילה את המשלוח המשויך להזמנה." };
+  }
   const r = String(reason || "").trim();
   if (r.length < 3) return { error: "יש להזין סיבת ביטול (לפחות 3 תווים)" };
   const now = stamp();

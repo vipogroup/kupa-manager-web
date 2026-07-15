@@ -14,6 +14,7 @@ import { CustomersPanel } from "@/components/CustomersPanel";
 import { ProductsPanel } from "@/components/ProductsPanel";
 import { OrdersPanel } from "@/components/OrdersPanel";
 import { InventoryPanel } from "@/components/InventoryPanel";
+import { DeliveriesPanel } from "@/components/DeliveriesPanel";
 
 const tabs: { id: TabId; label: string }[] = [
   { id: "home", label: "בית" },
@@ -23,12 +24,14 @@ const tabs: { id: TabId; label: string }[] = [
   { id: "products", label: "מוצרים" },
   { id: "orders", label: "הזמנות" },
   { id: "inventory", label: "מלאי" },
+  { id: "deliveries", label: "משלוחים" },
   { id: "sync", label: "סנכרון" },
 ];
 
 export function AppShell() {
   const [tab, setTab] = useState<TabId>("home");
   const [inventoryFocusProductId, setInventoryFocusProductId] = useState<string | null>(null);
+  const [deliveryFocusOrderId, setDeliveryFocusOrderId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [pendingDirtyLoad, setPendingDirtyLoad] = useState(false);
   const [banner, setBanner] = useState("");
@@ -203,11 +206,24 @@ export function AppShell() {
             }}
           />
         )}
-        {tab === "orders" && <OrdersPanel />}
+        {tab === "orders" && (
+          <OrdersPanel
+            onCreateDelivery={(orderId) => {
+              setDeliveryFocusOrderId(orderId);
+              setTab("deliveries");
+            }}
+          />
+        )}
         {tab === "inventory" && (
           <InventoryPanel
             key={inventoryFocusProductId || "inv-list"}
             initialProductId={inventoryFocusProductId}
+          />
+        )}
+        {tab === "deliveries" && (
+          <DeliveriesPanel
+            key={deliveryFocusOrderId || "dlv-list"}
+            initialOrderId={deliveryFocusOrderId}
           />
         )}
         {tab === "sync" && <SyncView />}
@@ -221,6 +237,7 @@ export function AppShell() {
               type="button"
               onClick={() => {
                 if (t.id !== "inventory") setInventoryFocusProductId(null);
+                if (t.id !== "deliveries") setDeliveryFocusOrderId(null);
                 setTab(t.id);
               }}
               className={`rounded-xl px-1 py-2 text-[0.68rem] font-medium transition ${

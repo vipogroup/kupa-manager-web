@@ -9,6 +9,7 @@ import {
 } from "./types";
 import { normalizeOrdersInData } from "./orders";
 import { attachOpeningMovement, normalizeInventoryInData } from "./inventory";
+import { normalizeDeliveriesInData } from "./deliveries";
 
 export const CUSTOMER_TYPES: CustomerType[] = ["private", "business"];
 export const DELIVERY_AREAS: DeliveryArea[] = ["unassigned", "center", "north", "south"];
@@ -226,11 +227,16 @@ export function normalizeAppDataEntities(data: AppData): AppData {
     products,
     orders: Array.isArray(data.orders) ? data.orders : [],
     inventoryMovements: Array.isArray(data.inventoryMovements) ? data.inventoryMovements : [],
+    deliveries: Array.isArray(data.deliveries) ? data.deliveries : [],
     customerCounter: counters.customerCounter,
     productCounter: counters.productCounter,
-    counters: data.counters || { nextOrderNumber: 0, nextInventoryMovementNumber: 0 },
+    counters: data.counters || {
+      nextOrderNumber: 0,
+      nextInventoryMovementNumber: 0,
+      nextDeliveryNumber: 0,
+    },
   };
-  return normalizeInventoryInData(normalizeOrdersInData(withEntities));
+  return normalizeDeliveriesInData(normalizeInventoryInData(normalizeOrdersInData(withEntities)));
 }
 
 export type CustomerInput = Omit<Customer, "id" | "customerNumber" | "createdAt" | "updatedAt"> & {

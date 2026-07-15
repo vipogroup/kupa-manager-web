@@ -141,6 +141,41 @@ export type InventoryMovement = {
 export type WorkspaceCounters = {
   nextOrderNumber: number;
   nextInventoryMovementNumber: number;
+  nextDeliveryNumber: number;
+};
+
+export type DeliveryStatus = "pending" | "ready" | "cancelled";
+
+export type DeliveryItemSnapshot = {
+  productNumber: string;
+  name: string;
+  model: string;
+  sku: string;
+  barcode: string;
+  unit: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+};
+
+export type Delivery = {
+  id: string;
+  deliveryNumber: string;
+  orderId: string;
+  orderNumberSnapshot: string;
+  status: DeliveryStatus;
+  scheduledDate: string;
+  deliveryAreaSnapshot: DeliveryArea;
+  customerSnapshot: CustomerSnapshot;
+  addressSnapshot: DeliveryAddressSnapshot;
+  itemsSnapshot: DeliveryItemSnapshot[];
+  orderTotalSnapshot: number;
+  paymentTypeSnapshot: PaymentType;
+  deliveryNotes: string;
+  cancellationReason: string;
+  createdAt: string;
+  updatedAt: string;
+  cancelledAt: string;
 };
 
 export type AppData = {
@@ -151,6 +186,7 @@ export type AppData = {
   products: Product[];
   orders: Order[];
   inventoryMovements: InventoryMovement[];
+  deliveries: Delivery[];
   updatedAt: string;
   customerCounter?: number;
   productCounter?: number;
@@ -165,6 +201,7 @@ export type TabId =
   | "products"
   | "orders"
   | "inventory"
+  | "deliveries"
   | "sync";
 
 export function emptyData(): AppData {
@@ -176,9 +213,14 @@ export function emptyData(): AppData {
     products: [],
     orders: [],
     inventoryMovements: [],
+    deliveries: [],
     updatedAt: new Date().toISOString(),
     customerCounter: 0,
     productCounter: 0,
-    counters: { nextOrderNumber: 0, nextInventoryMovementNumber: 0 },
+    counters: {
+      nextOrderNumber: 0,
+      nextInventoryMovementNumber: 0,
+      nextDeliveryNumber: 0,
+    },
   };
 }

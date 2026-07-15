@@ -142,16 +142,13 @@ export function normalizeInventoryInData(data: AppData): AppData {
     ? data.inventoryMovements.map((m, i) => normalizeInventoryMovement(m, i))
     : [];
   const nextInventoryMovementNumber = resolveInventoryCounter({ ...data, inventoryMovements });
-  const counters = {
-    nextOrderNumber: data.counters?.nextOrderNumber ?? 0,
-    nextInventoryMovementNumber,
-  };
   return {
     ...data,
     inventoryMovements,
     counters: {
-      ...(data.counters || { nextOrderNumber: 0, nextInventoryMovementNumber: 0 }),
-      ...counters,
+      nextOrderNumber: data.counters?.nextOrderNumber ?? 0,
+      nextDeliveryNumber: data.counters?.nextDeliveryNumber ?? 0,
+      ...(data.counters || {}),
       nextInventoryMovementNumber,
     },
   };
@@ -297,6 +294,8 @@ export function applyInventoryMovement(
       inventoryMovements,
       counters: {
         nextOrderNumber: data.counters?.nextOrderNumber ?? 0,
+        nextDeliveryNumber: data.counters?.nextDeliveryNumber ?? 0,
+        ...(data.counters || {}),
         nextInventoryMovementNumber: next,
       },
       updatedAt: now,
@@ -344,6 +343,8 @@ export function attachOpeningMovement(
       inventoryMovements: [movement, ...(data.inventoryMovements || [])],
       counters: {
         nextOrderNumber: data.counters?.nextOrderNumber ?? 0,
+        nextDeliveryNumber: data.counters?.nextDeliveryNumber ?? 0,
+        ...(data.counters || {}),
         nextInventoryMovementNumber: next,
       },
       updatedAt: now,

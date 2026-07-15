@@ -6,6 +6,7 @@ import { nanoid } from "nanoid";
 import {
   AppData,
   Customer,
+  Delivery,
   InventoryMovement,
   MoneyRecord,
   Order,
@@ -32,6 +33,14 @@ import {
   type OrderDraftInput,
 } from "./orders";
 import { applyInventoryMovement, type MovementCreateInput } from "./inventory";
+import {
+  allocateDelivery,
+  cancelDeliveryInData,
+  refreshDeliveryFromOrder,
+  updateDeliveryInData,
+  type DeliveryCreateInput,
+  type DeliveryUpdateInput,
+} from "./deliveries";
 
 export type SyncUiStatus =
   | "clean"
@@ -91,6 +100,18 @@ type Store = AppData & {
   createInventoryMovement: (
     input: MovementCreateInput
   ) => { ok: true; movement: InventoryMovement; product: Product } | { ok: false; error: string };
+  createDelivery: (
+    input: DeliveryCreateInput
+  ) => { ok: true; delivery: Delivery } | { ok: false; error: string };
+  updateDelivery: (
+    id: string,
+    patch: DeliveryUpdateInput
+  ) => { ok: true; delivery: Delivery } | { ok: false; error: string };
+  cancelDelivery: (
+    id: string,
+    reason: string
+  ) => { ok: true; delivery: Delivery } | { ok: false; error: string };
+  refreshDeliverySnapshot: (id: string) => { ok: true; delivery: Delivery } | { ok: false; error: string };
   replaceAll: (data: AppData) => void;
   touch: () => void;
   asAppData: () => AppData;
@@ -117,6 +138,7 @@ function defaultCounters(c?: AppData["counters"]) {
   return {
     nextOrderNumber: c?.nextOrderNumber ?? 0,
     nextInventoryMovementNumber: c?.nextInventoryMovementNumber ?? 0,
+    nextDeliveryNumber: c?.nextDeliveryNumber ?? 0,
   };
 }
 
@@ -129,6 +151,7 @@ function toAppData(s: AppData): AppData {
     products: s.products,
     orders: s.orders || [],
     inventoryMovements: s.inventoryMovements || [],
+    deliveries: s.deliveries || [],
     updatedAt: s.updatedAt,
     customerCounter: s.customerCounter ?? 0,
     productCounter: s.productCounter ?? 0,
@@ -140,6 +163,7 @@ function applyOrdersPatch(result: AppData) {
   return withDirty({
     orders: result.orders,
     products: result.products,
+    deliveries: result.deliveries || [],
     counters: defaultCounters(result.counters),
     updatedAt: result.updatedAt,
   });
@@ -241,6 +265,7 @@ export const useKupaStore = create<Store>()(
             products: result.data.products,
             productCounter: result.data.productCounter,
             inventoryMovements: result.data.inventoryMovements || [],
+            deliveries: result.data.deliveries || [],
             counters: defaultCounters(result.data.counters),
             updatedAt: result.data.updatedAt,
           })
@@ -315,6 +340,51 @@ export const useKupaStore = create<Store>()(
         );
         return { ok: true, movement: result.movement, product: result.product };
       },
+      createDelivery: (input) => {
+        const result = allocateDelivery(toAppData(get()), input);
+        if ("error" in result) return { ok: false, error: result.error };
+        set(
+          withDirty({
+            deliveries: result.data.deliveries || [],
+            counters: defaultCounters(result.data.counters),
+            updatedAt: result.data.updatedAt,
+          })
+        );
+        return { ok: true, delivery: result.delivery };
+      },
+      updateDelivery: (id, patch) => {
+        const result = updateDeliveryInData(toAppData(get()), id, patch);
+        if ("error" in result) return { ok: false, error: result.error };
+        set(
+          withDirty({
+            deliveries: result.data.deliveries || [],
+            updatedAt: result.data.updatedAt,
+          })
+        );
+        return { ok: true, delivery: result.delivery };
+      },
+      cancelDelivery: (id, reason) => {
+        const result = cancelDeliveryInData(toAppData(get()), id, reason);
+        if ("error" in result) return { ok: false, error: result.error };
+        set(
+          withDirty({
+            deliveries: result.data.deliveries || [],
+            updatedAt: result.data.updatedAt,
+          })
+        );
+        return { ok: true, delivery: result.delivery };
+      },
+      refreshDeliverySnapshot: (id) => {
+        const result = refreshDeliveryFromOrder(toAppData(get()), id);
+        if ("error" in result) return { ok: false, error: result.error };
+        set(
+          withDirty({
+            deliveries: result.data.deliveries || [],
+            updatedAt: result.data.updatedAt,
+          })
+        );
+        return { ok: true, delivery: result.delivery };
+      },
       replaceAll: (data) => {
         const normalized = normalizeAppDataEntities(data);
         set({
@@ -325,6 +395,7 @@ export const useKupaStore = create<Store>()(
           products: normalized.products,
           orders: normalized.orders || [],
           inventoryMovements: normalized.inventoryMovements || [],
+          deliveries: normalized.deliveries || [],
           updatedAt: normalized.updatedAt,
           customerCounter: normalized.customerCounter ?? 0,
           productCounter: normalized.productCounter ?? 0,
@@ -343,6 +414,7 @@ export const useKupaStore = create<Store>()(
         products: state.products,
         orders: state.orders || [],
         inventoryMovements: state.inventoryMovements || [],
+        deliveries: state.deliveries || [],
         updatedAt: state.updatedAt,
         customerCounter: state.customerCounter ?? 0,
         productCounter: state.productCounter ?? 0,
@@ -367,6 +439,7 @@ export const useKupaStore = create<Store>()(
         state.products = normalized.products;
         state.orders = normalized.orders || [];
         state.inventoryMovements = normalized.inventoryMovements || [];
+        state.deliveries = normalized.deliveries || [];
         state.customerCounter = normalized.customerCounter;
         state.productCounter = normalized.productCounter;
         state.counters = defaultCounters(normalized.counters);
