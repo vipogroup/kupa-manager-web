@@ -16,6 +16,7 @@ export const runtime = "nodejs";
  * - Never returns Blob URL / HMAC path / secrets
  */
 export async function GET(req: NextRequest) {
+  try {
   const limited = await enforceRateLimit(RATE_IDS.desktopSnapshot, req);
   if (limited) return securityHeaders(limited);
 
@@ -87,6 +88,9 @@ export async function GET(req: NextRequest) {
         },
       })
     );
+  } catch {
+    return jsonError(500, "שגיאת שרת");
+  }
   } catch {
     return jsonError(500, "שגיאת שרת");
   }
