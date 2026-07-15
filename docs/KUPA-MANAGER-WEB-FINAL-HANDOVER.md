@@ -6,7 +6,7 @@
 - Production URL: https://kupa-manager-web.vercel.app
 - GitHub URL: https://github.com/vipogroup/kupa-manager-web
 - Branch: master
-- Final Git SHA: (יושלם ב-commit הסופי; ראה גם `docs/kupa-manager-web-final-status.json`)
+- Final Git SHA: d3025a8f297596b7a0b3bffd051adca80cb412da
 - Vercel Production SHA: חייב להיות זהה ל-GitHub HEAD אחרי Deploy
 - Project ID: `prj_bMJOT38sqNQxMkA9yPBBMQrLn0OD`
 - Org ID: `team_We2Gv8A8bZpVXbI1bXPAj6nC`
