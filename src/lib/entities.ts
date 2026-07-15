@@ -8,6 +8,7 @@ import {
   emptyData,
 } from "./types";
 import { normalizeOrdersInData } from "./orders";
+import { attachOpeningMovement, normalizeInventoryInData } from "./inventory";
 
 export const CUSTOMER_TYPES: CustomerType[] = ["private", "business"];
 export const DELIVERY_AREAS: DeliveryArea[] = ["unassigned", "center", "north", "south"];
@@ -224,11 +225,12 @@ export function normalizeAppDataEntities(data: AppData): AppData {
     customers,
     products,
     orders: Array.isArray(data.orders) ? data.orders : [],
+    inventoryMovements: Array.isArray(data.inventoryMovements) ? data.inventoryMovements : [],
     customerCounter: counters.customerCounter,
     productCounter: counters.productCounter,
-    counters: data.counters || { nextOrderNumber: 0 },
+    counters: data.counters || { nextOrderNumber: 0, nextInventoryMovementNumber: 0 },
   };
-  return normalizeOrdersInData(withEntities);
+  return normalizeInventoryInData(normalizeOrdersInData(withEntities));
 }
 
 export type CustomerInput = Omit<Customer, "id" | "customerNumber" | "createdAt" | "updatedAt"> & {
@@ -407,15 +409,24 @@ export function allocateProduct(
     },
     next - 1
   );
-  return {
-    product,
-    data: {
-      ...data,
-      products: [product, ...data.products],
-      productCounter: next,
-      updatedAt: now,
-    },
+  let nextData: AppData = {
+    ...data,
+    products: [product, ...data.products],
+    productCounter: next,
+    inventoryMovements: Array.isArray(data.inventoryMovements) ? data.inventoryMovements : [],
+    updatedAt: now,
   };
+  // Opening movement only when initial stock > 0 — same local state mutation as product create.
+  if (product.stockQuantity > 0) {
+    const opened = attachOpeningMovement(nextData, product);
+    if ("error" in opened && opened.error !== "NO_OPENING") {
+      return { error: opened.error };
+    }
+    if (!("error" in opened)) {
+      nextData = opened.data;
+    }
+  }
+  return { product, data: nextData };
 }
 
 export function updateProductInData(
@@ -425,11 +436,14 @@ export function updateProductInData(
 ): { data: AppData; product: Product } | { error: string } {
   const existing = data.products.find((p) => p.id === id);
   if (!existing) return { error: "מוצר לא נמצא" };
+  const { stockQuantity: _stockIgnored, ...safePatch } = patch;
+  void _stockIgnored;
   const merged = {
     ...existing,
-    ...patch,
+    ...safePatch,
     id: existing.id,
     productNumber: existing.productNumber,
+    stockQuantity: existing.stockQuantity,
     createdAt: existing.createdAt,
     updatedAt: stamp(),
   };

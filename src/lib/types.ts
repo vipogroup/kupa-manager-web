@@ -122,8 +122,25 @@ export type Order = {
   cancelledAt: string;
 };
 
+export type InventoryMovementType = "opening" | "increase" | "decrease" | "correction";
+
+export type InventoryMovement = {
+  id: string;
+  movementNumber: string;
+  productId: string;
+  productSnapshot: ProductSnapshot;
+  movementType: InventoryMovementType;
+  quantityDelta: number;
+  quantityBefore: number;
+  quantityAfter: number;
+  reason: string;
+  notes: string;
+  createdAt: string;
+};
+
 export type WorkspaceCounters = {
   nextOrderNumber: number;
+  nextInventoryMovementNumber: number;
 };
 
 export type AppData = {
@@ -133,6 +150,7 @@ export type AppData = {
   customers: Customer[];
   products: Product[];
   orders: Order[];
+  inventoryMovements: InventoryMovement[];
   updatedAt: string;
   customerCounter?: number;
   productCounter?: number;
@@ -146,6 +164,7 @@ export type TabId =
   | "customers"
   | "products"
   | "orders"
+  | "inventory"
   | "sync";
 
 export function emptyData(): AppData {
@@ -156,9 +175,10 @@ export function emptyData(): AppData {
     customers: [],
     products: [],
     orders: [],
+    inventoryMovements: [],
     updatedAt: new Date().toISOString(),
     customerCounter: 0,
     productCounter: 0,
-    counters: { nextOrderNumber: 0 },
+    counters: { nextOrderNumber: 0, nextInventoryMovementNumber: 0 },
   };
 }

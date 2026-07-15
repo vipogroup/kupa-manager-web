@@ -38,7 +38,7 @@ function Field({
   );
 }
 
-export function ProductsPanel() {
+export function ProductsPanel({ onManageInventory }: { onManageInventory?: (productId: string) => void }) {
   const store = useKupaStore();
   const [mode, setMode] = useState<"list" | "form">("list");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -51,6 +51,8 @@ export function ProductsPanel() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [confirmDeactivateId, setConfirmDeactivateId] = useState<string | null>(null);
+
+  const isEdit = Boolean(editingId);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -115,7 +117,9 @@ export function ProductsPanel() {
     setError("");
     const salePrice = parseNonNeg(salePriceText);
     const costPrice = parseNonNeg(costPriceText);
-    const stockQuantity = parseNonNeg(stockText);
+    const stockQuantity = isEdit
+      ? store.products.find((p) => p.id === editingId)?.stockQuantity ?? 0
+      : parseNonNeg(stockText);
     if (salePrice === null) {
       setError("מחיר מכירה אינו תקין");
       return;
@@ -312,7 +316,31 @@ export function ProductsPanel() {
           />
           <Field label="מחיר מכירה" value={salePriceText} onChange={setSalePriceText} type="number" />
           <Field label="מחיר עלות" value={costPriceText} onChange={setCostPriceText} type="number" />
-          <Field label="כמות נוכחית" value={stockText} onChange={setStockText} type="number" />
+          {isEdit ? (
+            <div data-testid="product-stock-readonly">
+              <p className="text-sm font-medium">כמות נוכחית (קריאה בלבד)</p>
+              <p className="mt-1 rounded-xl border border-[var(--line)] bg-black/5 px-3 py-3 text-base">
+                {formatStock(Number(stockText) || 0)} {draft.unit || "יחידה"}
+              </p>
+              {onManageInventory && editingId ? (
+                <button
+                  type="button"
+                  data-testid="product-manage-inventory"
+                  className="mt-2 w-full rounded-xl border border-[var(--line)] py-3 text-sm font-semibold"
+                  onClick={() => onManageInventory(editingId)}
+                >
+                  ניהול מלאי
+                </button>
+              ) : null}
+            </div>
+          ) : (
+            <Field
+              label="כמות התחלתית"
+              value={stockText}
+              onChange={setStockText}
+              type="number"
+            />
+          )}
           <Field
             label="יחידת מידה"
             value={draft.unit || "יחידה"}

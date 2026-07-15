@@ -6,6 +6,7 @@ import { nanoid } from "nanoid";
 import {
   AppData,
   Customer,
+  InventoryMovement,
   MoneyRecord,
   Order,
   Product,
@@ -30,6 +31,7 @@ import {
   updateOrderInData,
   type OrderDraftInput,
 } from "./orders";
+import { applyInventoryMovement, type MovementCreateInput } from "./inventory";
 
 export type SyncUiStatus =
   | "clean"
@@ -86,6 +88,9 @@ type Store = AppData & {
   confirmOrder: (id: string) => { ok: true; order: Order } | { ok: false; error: string };
   cancelOrder: (id: string, reason: string) => { ok: true; order: Order } | { ok: false; error: string };
   copyOrder: (id: string) => { ok: true; order: Order } | { ok: false; error: string };
+  createInventoryMovement: (
+    input: MovementCreateInput
+  ) => { ok: true; movement: InventoryMovement; product: Product } | { ok: false; error: string };
   replaceAll: (data: AppData) => void;
   touch: () => void;
   asAppData: () => AppData;
@@ -108,6 +113,13 @@ function withDirty<T extends Partial<Store>>(patch: T): T & { dirty: true; syncS
   return { ...patch, dirty: true, syncStatus: "dirty" };
 }
 
+function defaultCounters(c?: AppData["counters"]) {
+  return {
+    nextOrderNumber: c?.nextOrderNumber ?? 0,
+    nextInventoryMovementNumber: c?.nextInventoryMovementNumber ?? 0,
+  };
+}
+
 function toAppData(s: AppData): AppData {
   return {
     version: 1,
@@ -116,17 +128,19 @@ function toAppData(s: AppData): AppData {
     customers: s.customers,
     products: s.products,
     orders: s.orders || [],
+    inventoryMovements: s.inventoryMovements || [],
     updatedAt: s.updatedAt,
     customerCounter: s.customerCounter ?? 0,
     productCounter: s.productCounter ?? 0,
-    counters: s.counters || { nextOrderNumber: 0 },
+    counters: defaultCounters(s.counters),
   };
 }
 
 function applyOrdersPatch(result: AppData) {
   return withDirty({
     orders: result.orders,
-    counters: result.counters,
+    products: result.products,
+    counters: defaultCounters(result.counters),
     updatedAt: result.updatedAt,
   });
 }
@@ -226,6 +240,8 @@ export const useKupaStore = create<Store>()(
           withDirty({
             products: result.data.products,
             productCounter: result.data.productCounter,
+            inventoryMovements: result.data.inventoryMovements || [],
+            counters: defaultCounters(result.data.counters),
             updatedAt: result.data.updatedAt,
           })
         );
@@ -286,6 +302,19 @@ export const useKupaStore = create<Store>()(
         set(applyOrdersPatch(result.data));
         return { ok: true, order: result.order };
       },
+      createInventoryMovement: (input) => {
+        const result = applyInventoryMovement(toAppData(get()), input);
+        if ("error" in result) return { ok: false, error: result.error };
+        set(
+          withDirty({
+            products: result.data.products,
+            inventoryMovements: result.data.inventoryMovements,
+            counters: defaultCounters(result.data.counters),
+            updatedAt: result.data.updatedAt,
+          })
+        );
+        return { ok: true, movement: result.movement, product: result.product };
+      },
       replaceAll: (data) => {
         const normalized = normalizeAppDataEntities(data);
         set({
@@ -295,10 +324,11 @@ export const useKupaStore = create<Store>()(
           customers: normalized.customers,
           products: normalized.products,
           orders: normalized.orders || [],
+          inventoryMovements: normalized.inventoryMovements || [],
           updatedAt: normalized.updatedAt,
           customerCounter: normalized.customerCounter ?? 0,
           productCounter: normalized.productCounter ?? 0,
-          counters: normalized.counters || { nextOrderNumber: 0 },
+          counters: defaultCounters(normalized.counters),
           workspaceCode: get().workspaceCode,
         });
       },
@@ -312,10 +342,11 @@ export const useKupaStore = create<Store>()(
         customers: state.customers,
         products: state.products,
         orders: state.orders || [],
+        inventoryMovements: state.inventoryMovements || [],
         updatedAt: state.updatedAt,
         customerCounter: state.customerCounter ?? 0,
         productCounter: state.productCounter ?? 0,
-        counters: state.counters || { nextOrderNumber: 0 },
+        counters: defaultCounters(state.counters),
         workspaceCode: state.workspaceCode,
         dirty: state.dirty,
         syncStatus:
@@ -335,9 +366,10 @@ export const useKupaStore = create<Store>()(
         state.customers = normalized.customers;
         state.products = normalized.products;
         state.orders = normalized.orders || [];
+        state.inventoryMovements = normalized.inventoryMovements || [];
         state.customerCounter = normalized.customerCounter;
         state.productCounter = normalized.productCounter;
-        state.counters = normalized.counters || { nextOrderNumber: 0 };
+        state.counters = defaultCounters(normalized.counters);
         if (typeof window !== "undefined") {
           localStorage.setItem("kupa-workspace-code", code);
         }

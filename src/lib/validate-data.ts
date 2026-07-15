@@ -19,8 +19,9 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
   }
   if (!isString(o.updatedAt)) return { ok: false };
 
-  // Legacy workspaces may omit orders — treat as []
+  // Legacy workspaces may omit orders / inventoryMovements — treat as []
   if (o.orders !== undefined && !Array.isArray(o.orders)) return { ok: false };
+  if (o.inventoryMovements !== undefined && !Array.isArray(o.inventoryMovements)) return { ok: false };
 
   for (const row of o.incomes) {
     if (!row || typeof row !== "object") return { ok: false };
@@ -58,6 +59,13 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
     if (!isString(r.id)) return { ok: false };
   }
 
+  const movementsRaw = Array.isArray(o.inventoryMovements) ? o.inventoryMovements : [];
+  for (const row of movementsRaw) {
+    if (!row || typeof row !== "object") return { ok: false };
+    const r = row as Record<string, unknown>;
+    if (!isString(r.id)) return { ok: false };
+  }
+
   const known = new Set([
     "version",
     "incomes",
@@ -65,6 +73,7 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
     "customers",
     "products",
     "orders",
+    "inventoryMovements",
     "updatedAt",
     "customerCounter",
     "productCounter",
@@ -81,12 +90,16 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
   const products = o.products.map((p, i) => normalizeProduct(p, i));
   const orders = ordersRaw.map((ord, i) => normalizeOrder(ord, i));
 
-  let counters = { nextOrderNumber: 0 };
+  let counters = { nextOrderNumber: 0, nextInventoryMovementNumber: 0 };
   if (o.counters && typeof o.counters === "object" && !Array.isArray(o.counters)) {
     const c = o.counters as Record<string, unknown>;
     counters = {
       nextOrderNumber:
         typeof c.nextOrderNumber === "number" && Number.isFinite(c.nextOrderNumber) ? c.nextOrderNumber : 0,
+      nextInventoryMovementNumber:
+        typeof c.nextInventoryMovementNumber === "number" && Number.isFinite(c.nextInventoryMovementNumber)
+          ? c.nextInventoryMovementNumber
+          : 0,
     };
   }
 
@@ -99,6 +112,7 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
     customers,
     products,
     orders,
+    inventoryMovements: movementsRaw as AppData["inventoryMovements"],
     updatedAt: o.updatedAt as string,
     customerCounter: typeof o.customerCounter === "number" && Number.isFinite(o.customerCounter) ? o.customerCounter : undefined,
     productCounter: typeof o.productCounter === "number" && Number.isFinite(o.productCounter) ? o.productCounter : undefined,

@@ -330,7 +330,8 @@ export function normalizeOrdersInData(data: AppData): AppData {
     ...data,
     orders,
     counters: {
-      ...(data.counters || { nextOrderNumber: 0 }),
+      nextInventoryMovementNumber: data.counters?.nextInventoryMovementNumber ?? 0,
+      ...(data.counters || {}),
       nextOrderNumber,
     },
   };
@@ -429,7 +430,8 @@ export function allocateOrder(
       ...data,
       orders: [order, ...(data.orders || [])],
       counters: {
-        ...(data.counters || { nextOrderNumber: 0 }),
+        nextInventoryMovementNumber: data.counters?.nextInventoryMovementNumber ?? 0,
+        ...(data.counters || {}),
         nextOrderNumber: next,
       },
       updatedAt: now,

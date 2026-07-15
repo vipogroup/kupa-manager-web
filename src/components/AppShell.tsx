@@ -13,6 +13,7 @@ import { applyCloudLoad, saveToCloud } from "@/lib/sync-client";
 import { CustomersPanel } from "@/components/CustomersPanel";
 import { ProductsPanel } from "@/components/ProductsPanel";
 import { OrdersPanel } from "@/components/OrdersPanel";
+import { InventoryPanel } from "@/components/InventoryPanel";
 
 const tabs: { id: TabId; label: string }[] = [
   { id: "home", label: "בית" },
@@ -21,11 +22,13 @@ const tabs: { id: TabId; label: string }[] = [
   { id: "customers", label: "לקוחות" },
   { id: "products", label: "מוצרים" },
   { id: "orders", label: "הזמנות" },
+  { id: "inventory", label: "מלאי" },
   { id: "sync", label: "סנכרון" },
 ];
 
 export function AppShell() {
   const [tab, setTab] = useState<TabId>("home");
+  const [inventoryFocusProductId, setInventoryFocusProductId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [pendingDirtyLoad, setPendingDirtyLoad] = useState(false);
   const [banner, setBanner] = useState("");
@@ -192,19 +195,35 @@ export function AppShell() {
           />
         )}
         {tab === "customers" && <CustomersPanel />}
-        {tab === "products" && <ProductsPanel />}
+        {tab === "products" && (
+          <ProductsPanel
+            onManageInventory={(productId) => {
+              setInventoryFocusProductId(productId);
+              setTab("inventory");
+            }}
+          />
+        )}
         {tab === "orders" && <OrdersPanel />}
+        {tab === "inventory" && (
+          <InventoryPanel
+            key={inventoryFocusProductId || "inv-list"}
+            initialProductId={inventoryFocusProductId}
+          />
+        )}
         {tab === "sync" && <SyncView />}
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 z-20 border-t border-[var(--line)] bg-[var(--panel)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-        <div className="mx-auto grid max-w-lg grid-cols-7 gap-0.5 px-1 py-2">
+        <div className="mx-auto grid max-w-lg grid-cols-4 gap-0.5 px-1 py-2">
           {tabs.map((t) => (
             <button
               key={t.id}
               type="button"
-              onClick={() => setTab(t.id)}
-              className={`rounded-xl px-1 py-2 text-[0.72rem] font-medium transition ${
+              onClick={() => {
+                if (t.id !== "inventory") setInventoryFocusProductId(null);
+                setTab(t.id);
+              }}
+              className={`rounded-xl px-1 py-2 text-[0.68rem] font-medium transition ${
                 tab === t.id
                   ? "bg-[var(--accent)] text-white"
                   : "text-[var(--muted)] hover:bg-black/5"
