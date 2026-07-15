@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 
+function extractToken(req: NextRequest): string | undefined {
+  const cookie = req.cookies.get(SESSION_COOKIE)?.value;
+  if (cookie) return cookie;
+  const auth = req.headers.get("authorization") || "";
+  const m = /^Bearer\s+(\S+)$/i.exec(auth.trim());
+  return m?.[1];
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -8,15 +16,15 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname === "/login" ||
-    pathname.startsWith("/api/auth/login")
+    pathname.startsWith("/api/auth/login") ||
+    pathname.startsWith("/api/desktop/login")
   ) {
     return NextResponse.next();
   }
 
-  // Session verify needs secret; if missing, fail closed for app pages.
   let session: Awaited<ReturnType<typeof verifySessionToken>>;
   try {
-    session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value);
+    session = await verifySessionToken(extractToken(req));
   } catch {
     session = { ok: false, reason: "invalid" };
   }

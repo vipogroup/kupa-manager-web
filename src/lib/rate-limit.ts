@@ -5,6 +5,8 @@ export const RATE_IDS = {
   login: "kupa-login",
   syncGet: "kupa-sync-get",
   syncPut: "kupa-sync-put",
+  desktopLogin: "kupa-desktop-login",
+  desktopSnapshot: "kupa-desktop-snapshot",
 } as const;
 
 export async function enforceRateLimit(

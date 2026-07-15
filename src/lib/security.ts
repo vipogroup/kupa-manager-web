@@ -20,9 +20,18 @@ export function jsonError(status: number, message: string): NextResponse {
   return securityHeaders(NextResponse.json({ error: message }, { status }));
 }
 
+/** Session from HttpOnly cookie (web) or Authorization: Bearer (Windows desktop). */
+export function extractSessionToken(req: NextRequest): string | undefined {
+  const cookie = req.cookies.get(SESSION_COOKIE)?.value;
+  if (cookie) return cookie;
+  const auth = req.headers.get("authorization") || "";
+  const m = /^Bearer\s+(\S+)$/i.exec(auth.trim());
+  return m?.[1];
+}
+
 export function requireSession(req: NextRequest): Promise<{ username: string } | NextResponse> {
   return (async () => {
-    const token = req.cookies.get(SESSION_COOKIE)?.value;
+    const token = extractSessionToken(req);
     const result = await verifySessionToken(token);
     if (!result.ok) {
       return jsonError(401, "נדרשת התחברות");
