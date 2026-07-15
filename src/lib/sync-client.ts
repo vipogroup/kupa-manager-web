@@ -30,9 +30,19 @@ function offline(): boolean {
   return typeof navigator !== "undefined" && navigator.onLine === false;
 }
 
-export async function fetchCloudSnapshot(code: string): Promise<SyncLoadResult> {
+function clearLegacyWorkspaceLocal(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem("kupa-workspace-code");
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Fetch account-bound cloud snapshot (session cookie). Client workspace codes are not used. */
+export async function fetchCloudSnapshot(): Promise<SyncLoadResult> {
   if (offline()) return { ok: false, status: 0, error: "אין חיבור לאינטרנט" };
-  const res = await fetch(`/api/sync?code=${encodeURIComponent(code)}`, { cache: "no-store" });
+  const res = await fetch("/api/sync", { cache: "no-store" });
   if (res.status === 401) {
     return { ok: false, status: 401, error: "נדרשת התחברות" };
   }
@@ -62,26 +72,44 @@ export async function fetchCloudSnapshot(code: string): Promise<SyncLoadResult> 
   };
 }
 
-export async function applyCloudLoad(code: string, force = false): Promise<SyncLoadResult> {
+/** Lightweight revision probe without applying data. */
+export async function fetchCloudRevision(): Promise<
+  | { ok: true; exists: false }
+  | { ok: true; exists: true; revision: number; updatedAt: string }
+  | { ok: false; status: number; error: string }
+> {
+  const result = await fetchCloudSnapshot();
+  if (!result.ok) return result;
+  if (!result.exists) return { ok: true, exists: false };
+  return {
+    ok: true,
+    exists: true,
+    revision: result.revision,
+    updatedAt: result.updatedAt,
+  };
+}
+
+export async function applyCloudLoad(force = false): Promise<SyncLoadResult> {
   const store = useKupaStore.getState();
   if (!force && store.dirty) {
     return { ok: false, status: 409, error: "DIRTY_CONFIRM_REQUIRED", conflict: false };
   }
   store.setSyncStatus("loading");
   try {
-    const result = await fetchCloudSnapshot(code);
+    const result = await fetchCloudSnapshot();
     if (!result.ok) {
       store.setSyncStatus(offline() ? "offline" : "error", result.error);
       return result;
     }
     if (!result.exists) {
       store.setSyncStatus(store.dirty ? "dirty" : "clean");
+      store.setCloudHydrated(true);
       return result;
     }
     store.replaceAll(result.data);
     store.markSynced(result.revision, result.updatedAt);
-    store.hydrateWorkspaceCode(code);
-    if (typeof window !== "undefined") localStorage.setItem("kupa-workspace-code", code);
+    store.setCloudHydrated(true);
+    clearLegacyWorkspaceLocal();
     return result;
   } catch {
     store.setSyncStatus(offline() ? "offline" : "error", "טעינה נכשלה");
@@ -89,11 +117,15 @@ export async function applyCloudLoad(code: string, force = false): Promise<SyncL
   }
 }
 
-export async function saveToCloud(code: string): Promise<SyncSaveResult> {
+export async function saveToCloud(): Promise<SyncSaveResult> {
   const store = useKupaStore.getState();
   if (offline()) {
     store.setSyncStatus("offline", "אין חיבור לאינטרנט — הנתונים נשמרו מקומית בלבד");
+    store.setPendingSync(true);
     return { ok: false, status: 0, error: "אין חיבור לאינטרנט — הנתונים נשמרו מקומית בלבד" };
+  }
+  if (store.syncStatus === "saving") {
+    return { ok: false, status: 0, error: "שמירה כבר מתבצעת" };
   }
   store.setSyncStatus("saving");
   const payload: AppData = {
@@ -119,7 +151,6 @@ export async function saveToCloud(code: string): Promise<SyncSaveResult> {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        code,
         baseRevision: store.cloudRevision || 0,
         deviceId: getOrCreateDeviceId(),
         data: payload,
@@ -149,8 +180,7 @@ export async function saveToCloud(code: string): Promise<SyncSaveResult> {
     }
     if (!res.ok) {
       store.setSyncStatus("error", typeof json.error === "string" ? json.error : "שמירה נכשלה");
-      // keep dirty
-      useKupaStore.setState({ dirty: true });
+      useKupaStore.setState({ dirty: true, pendingSync: true });
       return {
         ok: false,
         status: res.status,
@@ -160,12 +190,12 @@ export async function saveToCloud(code: string): Promise<SyncSaveResult> {
     const revision = Number(json.revision) || store.cloudRevision + 1;
     const updatedAt = typeof json.updatedAt === "string" ? json.updatedAt : new Date().toISOString();
     store.markSynced(revision, updatedAt);
-    store.hydrateWorkspaceCode(code);
-    if (typeof window !== "undefined") localStorage.setItem("kupa-workspace-code", code);
+    store.setPendingSync(false);
+    clearLegacyWorkspaceLocal();
     return { ok: true, revision, updatedAt };
   } catch {
     store.setSyncStatus(offline() ? "offline" : "error", "שמירה נכשלה");
-    useKupaStore.setState({ dirty: true });
+    useKupaStore.setState({ dirty: true, pendingSync: true });
     return { ok: false, status: 0, error: "שמירה נכשלה" };
   }
 }

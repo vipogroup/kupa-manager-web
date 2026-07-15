@@ -62,13 +62,18 @@ type MoneyInput = {
 };
 
 type Store = AppData & {
+  /** @deprecated Ignored for cloud path — account session resolves workspace server-side. */
   workspaceCode: string;
   dirty: boolean;
+  pendingSync: boolean;
+  cloudHydrated: boolean;
   syncStatus: SyncUiStatus;
   cloudRevision: number;
   cloudUpdatedAt: string;
   lastError: string;
   hydrateWorkspaceCode: (code: string) => void;
+  setCloudHydrated: (v: boolean) => void;
+  setPendingSync: (v: boolean) => void;
   markDirty: () => void;
   setSyncStatus: (status: SyncUiStatus, error?: string) => void;
   setCloudMeta: (revision: number, updatedAt: string) => void;
@@ -121,17 +126,20 @@ function stamp(): string {
   return new Date().toISOString();
 }
 
+/** Legacy helper — does not create new codes (account workspace is server-side). */
 function ensureWorkspaceCode(): string {
   if (typeof window === "undefined") return "";
-  const existing = localStorage.getItem("kupa-workspace-code");
-  if (existing) return existing;
-  const code = nanoid(10);
-  localStorage.setItem("kupa-workspace-code", code);
-  return code;
+  try {
+    return localStorage.getItem("kupa-workspace-code") || "";
+  } catch {
+    return "";
+  }
 }
 
-function withDirty<T extends Partial<Store>>(patch: T): T & { dirty: true; syncStatus: "dirty" } {
-  return { ...patch, dirty: true, syncStatus: "dirty" };
+function withDirty<T extends Partial<Store>>(
+  patch: T
+): T & { dirty: true; pendingSync: true; syncStatus: "dirty" } {
+  return { ...patch, dirty: true, pendingSync: true, syncStatus: "dirty" };
 }
 
 function defaultCounters(c?: AppData["counters"]) {
@@ -175,13 +183,17 @@ export const useKupaStore = create<Store>()(
       ...emptyData(),
       workspaceCode: "",
       dirty: false,
+      pendingSync: false,
+      cloudHydrated: false,
       syncStatus: "clean",
       cloudRevision: 0,
       cloudUpdatedAt: "",
       lastError: "",
       asAppData: () => toAppData(get()),
       hydrateWorkspaceCode: (code) => set({ workspaceCode: code }),
-      markDirty: () => set({ dirty: true, syncStatus: "dirty" }),
+      setCloudHydrated: (v) => set({ cloudHydrated: v }),
+      setPendingSync: (v) => set({ pendingSync: v }),
+      markDirty: () => set({ dirty: true, pendingSync: true, syncStatus: "dirty" }),
       setSyncStatus: (status, error) =>
         set({ syncStatus: status, lastError: error || (status === "error" ? get().lastError : "") }),
       setCloudMeta: (revision, updatedAt) =>
@@ -189,6 +201,7 @@ export const useKupaStore = create<Store>()(
       markSynced: (revision, updatedAt) =>
         set({
           dirty: false,
+          pendingSync: false,
           syncStatus: "synced",
           cloudRevision: revision,
           cloudUpdatedAt: updatedAt,
@@ -419,8 +432,8 @@ export const useKupaStore = create<Store>()(
         customerCounter: state.customerCounter ?? 0,
         productCounter: state.productCounter ?? 0,
         counters: defaultCounters(state.counters),
-        workspaceCode: state.workspaceCode,
         dirty: state.dirty,
+        pendingSync: state.pendingSync,
         syncStatus:
           state.syncStatus === "saving" || state.syncStatus === "loading"
             ? state.dirty
@@ -432,8 +445,9 @@ export const useKupaStore = create<Store>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (!state) return;
-        const code = state.workspaceCode || ensureWorkspaceCode();
-        state.hydrateWorkspaceCode(code);
+        // Ignore legacy browser workspace codes for cloud path selection.
+        state.hydrateWorkspaceCode("");
+        state.cloudHydrated = false;
         const normalized = normalizeAppDataEntities(toAppData(state));
         state.customers = normalized.customers;
         state.products = normalized.products;
@@ -443,9 +457,7 @@ export const useKupaStore = create<Store>()(
         state.customerCounter = normalized.customerCounter;
         state.productCounter = normalized.productCounter;
         state.counters = defaultCounters(normalized.counters);
-        if (typeof window !== "undefined") {
-          localStorage.setItem("kupa-workspace-code", code);
-        }
+        // Legacy workspace-code key is cleared only after successful cloud sync (sync-client).
       },
     }
   )

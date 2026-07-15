@@ -8,6 +8,9 @@ import {
   parseCloudSnapshot,
 } from "./sync-snapshot";
 import {
+  accountBackupPathname,
+  accountBackupPrefix,
+  accountWorkspacePath,
   backupPathname,
   workspaceBackupPrefix,
   workspaceHmacPath,
@@ -32,8 +35,7 @@ export type ReadSnapshotResult =
       rawText: string;
     };
 
-export async function readWorkspaceSnapshot(code: string): Promise<ReadSnapshotResult> {
-  const pathname = workspaceHmacPath(code);
+async function readSnapshotAtPath(pathname: string | null): Promise<ReadSnapshotResult> {
   if (!pathname) return { exists: false };
   try {
     const meta = await head(pathname, { token: privateToken() });
@@ -62,25 +64,11 @@ export async function readWorkspaceSnapshot(code: string): Promise<ReadSnapshotR
     if (err instanceof Error && (err.message === "cloud_json_invalid" || err.message === "cloud_snapshot_invalid")) {
       throw err;
     }
-    // Missing blob
     return { exists: false };
   }
 }
 
-async function writeBackup(code: string, revision: number, rawText: string, updatedAt: string): Promise<void> {
-  const path = backupPathname(code, revision, updatedAt);
-  if (!path) throw new Error("backup_path_invalid");
-  await put(path, rawText, {
-    access: "private",
-    contentType: "application/json",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    token: privateToken(),
-  });
-}
-
-async function pruneBackups(code: string): Promise<void> {
-  const prefix = workspaceBackupPrefix(code);
+async function pruneBackupsAtPrefix(prefix: string | null): Promise<void> {
   if (!prefix) return;
   const res = await list({ token: privateToken(), prefix, limit: 1000 });
   const sorted = [...res.blobs].sort((a, b) => {
@@ -88,8 +76,7 @@ async function pruneBackups(code: string): Promise<void> {
     const tb = b.uploadedAt ? new Date(b.uploadedAt).getTime() : 0;
     return tb - ta;
   });
-  const excess = sorted.slice(BACKUP_RETENTION);
-  for (const blob of excess) {
+  for (const blob of sorted.slice(BACKUP_RETENTION)) {
     await del(blob.url, { token: privateToken() });
   }
 }
@@ -104,22 +91,18 @@ export type SaveGuardResult =
     }
   | { ok: false; kind: "error"; message: string };
 
-/**
- * Save with revision guard + private backup + ifMatch (when blob exists) + read-back.
- * Residual concurrency window is narrowed by etag ifMatch; not claimed as full atomic CAS alone.
- */
-export async function saveWorkspaceGuarded(input: {
-  code: string;
+async function saveGuardedCore(input: {
+  pathname: string;
+  backupPrefix: string | null;
+  makeBackupPath: (revision: number, updatedAt: string) => string | null;
   baseRevision: number;
   deviceId: string;
   data: AppData;
+  reread: () => Promise<ReadSnapshotResult>;
 }): Promise<SaveGuardResult> {
-  const pathname = workspaceHmacPath(input.code);
-  if (!pathname) return { ok: false, kind: "error", message: "invalid_workspace" };
-
   let current: ReadSnapshotResult;
   try {
-    current = await readWorkspaceSnapshot(input.code);
+    current = await input.reread();
   } catch {
     return { ok: false, kind: "error", message: "cloud_read_failed" };
   }
@@ -138,12 +121,18 @@ export async function saveWorkspaceGuarded(input: {
   if (current.exists) {
     try {
       JSON.parse(current.rawText);
-      await writeBackup(
-        input.code,
+      const bpath = input.makeBackupPath(
         current.snapshot.revision,
-        current.rawText,
         current.snapshot.updatedAt || new Date().toISOString()
       );
+      if (!bpath) throw new Error("backup_path_invalid");
+      await put(bpath, current.rawText, {
+        access: "private",
+        contentType: "application/json",
+        addRandomSuffix: false,
+        allowOverwrite: true,
+        token: privateToken(),
+      });
     } catch {
       return { ok: false, kind: "error", message: "backup_failed" };
     }
@@ -162,7 +151,7 @@ export async function saveWorkspaceGuarded(input: {
 
   try {
     if (current.exists) {
-      await put(pathname, body, {
+      await put(input.pathname, body, {
         access: "private",
         contentType: "application/json",
         addRandomSuffix: false,
@@ -171,7 +160,7 @@ export async function saveWorkspaceGuarded(input: {
         token: privateToken(),
       });
     } else {
-      await put(pathname, body, {
+      await put(input.pathname, body, {
         access: "private",
         contentType: "application/json",
         addRandomSuffix: false,
@@ -181,7 +170,7 @@ export async function saveWorkspaceGuarded(input: {
     }
   } catch (err) {
     if (err instanceof BlobPreconditionFailedError) {
-      const again = await readWorkspaceSnapshot(input.code);
+      const again = await input.reread();
       return {
         ok: false,
         kind: "conflict",
@@ -192,9 +181,8 @@ export async function saveWorkspaceGuarded(input: {
     return { ok: false, kind: "error", message: "write_failed" };
   }
 
-  // Read-back verification
   try {
-    const verify = await readWorkspaceSnapshot(input.code);
+    const verify = await input.reread();
     if (!verify.exists) return { ok: false, kind: "error", message: "readback_missing" };
     if (verify.snapshot.revision !== nextRevision) {
       return { ok: false, kind: "error", message: "readback_revision" };
@@ -210,15 +198,64 @@ export async function saveWorkspaceGuarded(input: {
   }
 
   try {
-    await pruneBackups(input.code);
+    await pruneBackupsAtPrefix(input.backupPrefix);
   } catch {
-    // Retention failure must not undo a verified save
+    /* ok */
   }
 
   return { ok: true, revision: nextRevision, updatedAt };
 }
 
-/** @deprecated Prefer readWorkspaceSnapshot — kept for compatibility helpers */
+/** Canonical account workspace (session-derived). */
+export async function readAccountWorkspaceSnapshot(accountId: string): Promise<ReadSnapshotResult> {
+  return readSnapshotAtPath(accountWorkspacePath(accountId));
+}
+
+export async function saveAccountWorkspaceGuarded(input: {
+  accountId: string;
+  baseRevision: number;
+  deviceId: string;
+  data: AppData;
+}): Promise<SaveGuardResult> {
+  const pathname = accountWorkspacePath(input.accountId);
+  if (!pathname) return { ok: false, kind: "error", message: "invalid_workspace" };
+  return saveGuardedCore({
+    pathname,
+    backupPrefix: accountBackupPrefix(input.accountId),
+    makeBackupPath: (revision, updatedAt) =>
+      accountBackupPathname(input.accountId, revision, updatedAt),
+    baseRevision: input.baseRevision,
+    deviceId: input.deviceId,
+    data: input.data,
+    reread: () => readAccountWorkspaceSnapshot(input.accountId),
+  });
+}
+
+/** @deprecated Legacy code-based paths — tests / migration tools only. */
+export async function readWorkspaceSnapshot(code: string): Promise<ReadSnapshotResult> {
+  return readSnapshotAtPath(workspaceHmacPath(code));
+}
+
+/** @deprecated Legacy code-based paths — tests / migration tools only. */
+export async function saveWorkspaceGuarded(input: {
+  code: string;
+  baseRevision: number;
+  deviceId: string;
+  data: AppData;
+}): Promise<SaveGuardResult> {
+  const pathname = workspaceHmacPath(input.code);
+  if (!pathname) return { ok: false, kind: "error", message: "invalid_workspace" };
+  return saveGuardedCore({
+    pathname,
+    backupPrefix: workspaceBackupPrefix(input.code),
+    makeBackupPath: (revision, updatedAt) => backupPathname(input.code, revision, updatedAt),
+    baseRevision: input.baseRevision,
+    deviceId: input.deviceId,
+    data: input.data,
+    reread: () => readWorkspaceSnapshot(input.code),
+  });
+}
+
 export async function readWorkspace(code: string): Promise<AppData | null> {
   const r = await readWorkspaceSnapshot(code);
   if (!r.exists) return null;

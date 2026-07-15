@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cloudMode, readWorkspaceSnapshot, saveWorkspaceGuarded } from "@/lib/cloud";
-import { sanitizeCode } from "@/lib/sanitize";
+import {
+  cloudMode,
+  readAccountWorkspaceSnapshot,
+  saveAccountWorkspaceGuarded,
+} from "@/lib/cloud";
+import { resolveAccountIdFromSession } from "@/lib/account-workspace";
 import { validateAppData } from "@/lib/validate-data";
 import { sanitizeDeviceId } from "@/lib/sync-snapshot";
 import {
@@ -15,6 +19,10 @@ import { RATE_IDS, enforceRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
+/**
+ * Workspace path is derived from authenticated session only.
+ * Client-supplied workspace codes are ignored.
+ */
 export async function GET(req: NextRequest) {
   const limited = await enforceRateLimit(RATE_IDS.syncGet, req);
   if (limited) return securityHeaders(limited);
@@ -22,11 +30,10 @@ export async function GET(req: NextRequest) {
   const session = await requireSession(req);
   if (session instanceof NextResponse) return session;
 
-  const code = sanitizeCode(req.nextUrl.searchParams.get("code") || "");
-  if (!code) return jsonError(400, "חסר קוד סביבה");
+  const accountId = resolveAccountIdFromSession(session.username);
 
   try {
-    const result = await readWorkspaceSnapshot(code);
+    const result = await readAccountWorkspaceSnapshot(accountId);
     if (!result.exists) {
       return securityHeaders(
         NextResponse.json({
@@ -37,6 +44,7 @@ export async function GET(req: NextRequest) {
           updatedAt: null,
           schemaVersion: null,
           data: null,
+          accountBound: true,
         })
       );
     }
@@ -50,6 +58,7 @@ export async function GET(req: NextRequest) {
         schemaVersion: result.snapshot.schemaVersion,
         legacy: result.snapshot.legacy,
         data: result.snapshot.data,
+        accountBound: true,
       })
     );
   } catch {
@@ -79,8 +88,11 @@ export async function PUT(req: NextRequest) {
     baseRevision?: unknown;
     deviceId?: unknown;
   };
-  const code = sanitizeCode(typeof value.code === "string" ? value.code : "");
-  if (!code) return jsonError(400, "חסר קוד סביבה");
+
+  // Intentionally ignore client `code` — workspace is session-bound.
+  void value.code;
+
+  const accountId = resolveAccountIdFromSession(session.username);
 
   const deviceId = sanitizeDeviceId(value.deviceId);
   if (!deviceId) return jsonError(400, "מזהה מכשיר לא תקין");
@@ -93,8 +105,8 @@ export async function PUT(req: NextRequest) {
   if (!validated.ok) return jsonError(400, "מבנה נתונים לא תקין");
 
   try {
-    const result = await saveWorkspaceGuarded({
-      code,
+    const result = await saveAccountWorkspaceGuarded({
+      accountId,
       baseRevision: value.baseRevision,
       deviceId,
       data: validated.data,
@@ -135,6 +147,7 @@ export async function PUT(req: NextRequest) {
         mode: cloudMode(),
         revision: result.revision,
         updatedAt: result.updatedAt,
+        accountBound: true,
       })
     );
   } catch {

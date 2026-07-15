@@ -1,15 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  ensureWorkspaceCode,
-  formatMoney,
-  sumAmounts,
-  todayISO,
-  useKupaStore,
-} from "@/lib/store";
+import { formatMoney, sumAmounts, todayISO, useKupaStore } from "@/lib/store";
 import type { AppData, TabId } from "@/lib/types";
 import { applyCloudLoad, saveToCloud } from "@/lib/sync-client";
+import { useAccountCloudSync } from "@/lib/useAccountCloudSync";
+import { getOrCreateDeviceId } from "@/lib/device-id";
 import { CustomersPanel } from "@/components/CustomersPanel";
 import { ProductsPanel } from "@/components/ProductsPanel";
 import { OrdersPanel } from "@/components/OrdersPanel";
@@ -36,61 +32,35 @@ export function AppShell() {
   const [pendingDirtyLoad, setPendingDirtyLoad] = useState(false);
   const [banner, setBanner] = useState("");
   const store = useKupaStore();
+  const cloudHydrated = useKupaStore((s) => s.cloudHydrated);
 
   useEffect(() => {
-    const finish = () => {
-      const current = useKupaStore.getState();
-      const code = current.workspaceCode || ensureWorkspaceCode();
-      if (!current.workspaceCode) current.hydrateWorkspaceCode(code);
-      setReady(true);
-    };
+    const finish = () => setReady(true);
     const unsub = useKupaStore.persist.onFinishHydration(finish);
     if (useKupaStore.persist.hasHydrated()) finish();
     return unsub;
   }, []);
 
-  // Auto-load after login / refresh / app open (no polling).
-  useEffect(() => {
-    if (!ready) return;
-    const code = useKupaStore.getState().workspaceCode;
-    if (!code) return;
-    let cancelled = false;
-    void (async () => {
-      const state = useKupaStore.getState();
-      if (state.dirty) {
-        setPendingDirtyLoad(true);
-        setBanner("קיימים שינויים שלא נשמרו. טעינת הענן תחליף אותם.");
-        return;
-      }
-      const result = await applyCloudLoad(code, true);
-      if (cancelled) return;
-      if (!result.ok && result.status === 401) {
-        window.location.href = "/login";
-        return;
-      }
-      if (!result.ok) {
-        setBanner(result.error || "טעינה מהענן נכשלה — הנתונים המקומיים נשמרו");
-        return;
-      }
-      if (!result.exists) {
-        setBanner("לא נמצאו נתונים שמורים בענן עבור סביבת העבודה הזאת.");
-        return;
-      }
-      setBanner("נטען מהענן לאחר פתיחה / רענון.");
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [ready]);
+  useAccountCloudSync(ready, {
+    onBanner: setBanner,
+    onDirtyCloudNewer: () => setPendingDirtyLoad(true),
+    onAuthRequired: () => {
+      window.location.href = "/login";
+    },
+  });
 
   const incomeTotal = useMemo(() => sumAmounts(store.incomes), [store.incomes]);
   const expenseTotal = useMemo(() => sumAmounts(store.expenses), [store.expenses]);
   const balance = incomeTotal - expenseTotal;
 
-  if (!ready) {
+  if (!ready || !cloudHydrated) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-[var(--bg)] text-[var(--ink)]">
-        טוען…
+      <div
+        className="flex min-h-dvh flex-col items-center justify-center gap-2 bg-[var(--bg)] px-6 text-center text-[var(--ink)]"
+        data-testid="acct-ws-cloud-loading"
+      >
+        <p className="font-[family-name:var(--font-display)] text-xl font-semibold">טוען נתונים מהענן…</p>
+        <p className="text-sm text-[var(--muted)]">הנתונים מסונכרנים לחשבון המחובר</p>
       </div>
     );
   }
@@ -106,7 +76,7 @@ export function AppShell() {
             <h1 className="mt-1 font-[family-name:var(--font-display)] text-2xl font-semibold leading-tight">
               ניהול הכנסות והוצאות
             </h1>
-            <p className="mt-1 text-sm text-[var(--muted)]">ממשק נייד מאובטח</p>
+            <p className="mt-1 text-sm text-[var(--muted)]">ממשק נייד מאובטח · מסונכרן לחשבון</p>
           </div>
           <button
             type="button"
@@ -124,8 +94,13 @@ export function AppShell() {
 
       <main className="flex-1 px-4 pb-28 pt-4">
         {pendingDirtyLoad ? (
-          <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm">
-            <p className="font-medium text-amber-950">קיימים שינויים שלא נשמרו. טעינת הענן תחליף אותם.</p>
+          <div
+            className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm"
+            data-testid="acct-ws-migration-conflict"
+          >
+            <p className="font-medium text-amber-950">
+              קיימת גרסה חדשה בענן ושינויים מקומיים שטרם נשמרו.
+            </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -142,9 +117,8 @@ export function AppShell() {
                 className="rounded-xl bg-[var(--accent)] py-2 font-semibold text-white"
                 onClick={() => {
                   void (async () => {
-                    const code = useKupaStore.getState().workspaceCode;
                     setPendingDirtyLoad(false);
-                    const result = await applyCloudLoad(code, true);
+                    const result = await applyCloudLoad(true);
                     if (!result.ok && result.status === 401) {
                       window.location.href = "/login";
                       return;
@@ -154,7 +128,7 @@ export function AppShell() {
                       return;
                     }
                     if (!result.exists) {
-                      setBanner("לא נמצאו נתונים שמורים בענן עבור סביבת העבודה הזאת.");
+                      setBanner("אין עדיין נתונים בענן לחשבון זה.");
                       return;
                     }
                     setBanner("נטען מהענן בהצלחה");
@@ -167,7 +141,10 @@ export function AppShell() {
           </div>
         ) : null}
         {banner ? (
-          <p className="mb-3 rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-2 text-xs text-[var(--muted)]">
+          <p
+            className="mb-3 rounded-xl border border-[var(--line)] bg-[var(--panel)] px-3 py-2 text-xs text-[var(--muted)]"
+            data-testid="acct-ws-banner"
+          >
             {banner}
           </p>
         ) : null}
@@ -438,32 +415,36 @@ function syncStatusLabel(status: string, dirty: boolean): string {
 
 function SyncView() {
   const store = useKupaStore();
-  const [code, setCode] = useState(store.workspaceCode);
   const [message, setMessage] = useState("");
   const [confirmLoad, setConfirmLoad] = useState(false);
   const [conflictOpen, setConflictOpen] = useState(false);
+  const [deviceDiag, setDeviceDiag] = useState("");
   const saving = store.syncStatus === "saving";
   const loading = store.syncStatus === "loading";
 
   useEffect(() => {
-    setCode(store.workspaceCode);
-  }, [store.workspaceCode]);
+    setDeviceDiag(getOrCreateDeviceId().slice(0, 8));
+  }, []);
 
   async function pushCloud() {
-    setMessage("");
-    const result = await saveToCloud(code);
+    setMessage("שומר…");
+    const result = await saveToCloud();
     if (!result.ok && result.status === 401) {
       window.location.href = "/login";
       return;
     }
     if (result.ok) {
-      setMessage("שמירה הצליחה");
+      setMessage("נשמר בענן");
       setConflictOpen(false);
       return;
     }
     if (result.conflict) {
       setConflictOpen(true);
-      setMessage("הנתונים בענן השתנו ממכשיר אחר. טען את הגרסה החדשה לפני שמירה נוספת.");
+      setMessage("התנגשות בין מכשירים — הנתונים בענן השתנו ממכשיר אחר.");
+      return;
+    }
+    if (result.status === 0) {
+      setMessage(result.error || "אין חיבור — ממתין לסנכרון");
       return;
     }
     setMessage(result.error || "שמירה נכשלה");
@@ -476,7 +457,7 @@ function SyncView() {
     }
     setConfirmLoad(false);
     setMessage("");
-    const result = await applyCloudLoad(code, true);
+    const result = await applyCloudLoad(true);
     if (!result.ok && result.status === 401) {
       window.location.href = "/login";
       return;
@@ -486,7 +467,7 @@ function SyncView() {
       return;
     }
     if (!result.exists) {
-      setMessage("לא נמצאו נתונים שמורים בענן עבור סביבת העבודה הזאת.");
+      setMessage("אין עדיין נתונים בענן לחשבון זה.");
       return;
     }
     setConflictOpen(false);
@@ -495,7 +476,7 @@ function SyncView() {
 
   async function refreshStatus() {
     setMessage("מרענן מצב…");
-    const result = await applyCloudLoad(code, !store.dirty);
+    const result = await applyCloudLoad(!store.dirty);
     if (!result.ok && result.error === "DIRTY_CONFIRM_REQUIRED") {
       setConfirmLoad(true);
       setMessage("קיימים שינויים שלא נשמרו. טעינת הענן תחליף אותם.");
@@ -510,25 +491,20 @@ function SyncView() {
       return;
     }
     if (!result.exists) {
-      setMessage("לא נמצאו נתונים שמורים בענן עבור סביבת העבודה הזאת.");
+      setMessage("אין עדיין נתונים בענן לחשבון זה.");
       return;
     }
     setMessage("מצב עודכן מהענן");
   }
 
-  function copyCode() {
-    void navigator.clipboard?.writeText(code);
-    setMessage("הקוד הועתק");
-  }
-
   const online = typeof navigator === "undefined" ? true : navigator.onLine;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-testid="acct-ws-sync-view">
       <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
         <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">סנכרון בין מכשירים</h2>
-        <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]">
-          שינויים ממכשיר אחר יופיעו לאחר רענון או טעינה מהענן.
+        <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]" data-testid="acct-ws-account-bound-msg">
+          הנתונים מסונכרנים לחשבון המחובר. אין צורך בקוד סביבת עבודה.
         </p>
 
         <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
@@ -538,56 +514,58 @@ function SyncView() {
           </div>
           <div className="rounded-xl border border-[var(--line)] bg-white px-3 py-2">
             <dt className="text-xs text-[var(--muted)]">מצב סנכרון</dt>
-            <dd className="font-semibold">{syncStatusLabel(store.syncStatus, store.dirty)}</dd>
+            <dd className="font-semibold" data-testid="acct-ws-sync-status">
+              {syncStatusLabel(store.syncStatus, store.dirty)}
+            </dd>
           </div>
           <div className="rounded-xl border border-[var(--line)] bg-white px-3 py-2">
             <dt className="text-xs text-[var(--muted)]">שמירה אחרונה בענן</dt>
-            <dd className="font-semibold text-xs break-all">{store.cloudUpdatedAt || "—"}</dd>
+            <dd className="font-semibold text-xs break-all" data-testid="acct-ws-cloud-updated">
+              {store.cloudUpdatedAt || "—"}
+            </dd>
           </div>
           <div className="rounded-xl border border-[var(--line)] bg-white px-3 py-2">
             <dt className="text-xs text-[var(--muted)]">revision נוכחי</dt>
-            <dd className="font-semibold">{store.cloudRevision || 0}</dd>
+            <dd className="font-semibold" data-testid="acct-ws-revision">
+              {store.cloudRevision || 0}
+            </dd>
+          </div>
+          <div className="rounded-xl border border-[var(--line)] bg-white px-3 py-2 col-span-2">
+            <dt className="text-xs text-[var(--muted)]">מזהה מכשיר (אבחון בלבד)</dt>
+            <dd className="font-mono text-xs" data-testid="acct-ws-device-diag" dir="ltr">
+              {deviceDiag || "—"}
+            </dd>
           </div>
         </dl>
-
-        <label className="mt-4 block text-sm font-medium">
-          קוד סביבת עבודה
-          <input
-            className="mt-1 w-full rounded-xl border border-[var(--line)] bg-white px-3 py-3 font-mono text-sm"
-            value={code}
-            onChange={(e) => setCode(e.target.value.trim())}
-            dir="ltr"
-          />
-        </label>
 
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button
             type="button"
-            disabled={saving || loading || !code}
+            disabled={saving || loading}
             onClick={() => void pushCloud()}
             className="rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-white disabled:opacity-50"
+            data-testid="acct-ws-manual-save"
           >
             שמור לענן
           </button>
           <button
             type="button"
-            disabled={saving || loading || !code}
+            disabled={saving || loading}
             onClick={() => void pullCloud(false)}
             className="rounded-xl border border-[var(--line)] bg-white py-3 text-sm font-semibold disabled:opacity-50"
+            data-testid="acct-ws-manual-load"
           >
             טען מהענן
           </button>
         </div>
         <button
           type="button"
-          disabled={saving || loading || !code}
+          disabled={saving || loading}
           onClick={() => void refreshStatus()}
           className="mt-2 w-full rounded-xl border border-[var(--line)] bg-white py-2 text-sm font-semibold disabled:opacity-50"
+          data-testid="acct-ws-refresh-status"
         >
           רענן מצב
-        </button>
-        <button type="button" onClick={copyCode} className="mt-2 w-full py-2 text-sm text-[var(--accent)] underline">
-          העתק קוד
         </button>
 
         {confirmLoad ? (
@@ -608,8 +586,11 @@ function SyncView() {
           </div>
         ) : null}
 
-        {conflictOpen ? (
-          <div className="mt-3 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm">
+        {conflictOpen || store.syncStatus === "conflict" ? (
+          <div
+            className="mt-3 rounded-xl border border-rose-300 bg-rose-50 p-3 text-sm"
+            data-testid="acct-ws-conflict"
+          >
             <p>הנתונים בענן השתנו ממכשיר אחר. טען את הגרסה החדשה לפני שמירה נוספת.</p>
             <div className="mt-2 grid grid-cols-2 gap-2">
               <button type="button" className="rounded-lg border bg-white py-2" onClick={() => setConflictOpen(false)}>
@@ -629,6 +610,11 @@ function SyncView() {
         {message ? <p className="mt-3 text-sm text-[var(--ink)]">{message}</p> : null}
         {store.lastError && store.syncStatus === "error" ? (
           <p className="mt-2 text-xs text-rose-700">{store.lastError}</p>
+        ) : null}
+        {store.pendingSync ? (
+          <p className="mt-2 text-xs font-semibold text-amber-800" data-testid="acct-ws-pending-sync">
+            השינוי ממתין לסנכרון
+          </p>
         ) : null}
         <p className="mt-3 text-xs text-[var(--muted)]">עודכן מקומית: {store.updatedAt || "—"}</p>
         {store.dirty ? (
