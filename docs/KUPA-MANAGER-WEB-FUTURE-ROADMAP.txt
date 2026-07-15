@@ -1,0 +1,273 @@
+Kupa Manager Web — Future Development Roadmap
+==============================================
+
+CURRENT PROJECT STATE
+---------------------
+Project: kupa-manager-web
+Production URL: https://kupa-manager-web.vercel.app
+GitHub: https://github.com/vipogroup/kupa-manager-web
+Branch: master
+Current verified Git/Vercel SHA: 5970af9ba296a7040d9db46ec42ff4bd6c250034
+
+Current completed modules:
+- Authentication
+- Income
+- Expenses
+- Customers
+- Products
+- Orders
+- Basic inventory
+- Deliveries by area
+- A4 delivery labels
+- Manual cloud save/load/refresh
+- Conflict protection (revision / 409)
+- Private Blob storage
+
+Important:
+Windows and Web are still two separate systems.
+There is no automatic sync between them.
+Do not treat Web as a full clone of Windows.
+
+Related handover: docs/KUPA-MANAGER-WEB-FINAL-HANDOVER.md
+Markdown roadmap: docs/KUPA-MANAGER-WEB-FUTURE-ROADMAP.md
+
+MANDATORY FUTURE RULES
+----------------------
+- Every feature must use a Test Workspace only.
+- No write tests against real business data.
+- Every phase must pass full regression before merge/deploy.
+- Every production deploy must come from GitHub only.
+- GitHub HEAD must equal origin/master must equal Vercel Production SHA.
+- No Vercel CLI Production Deploy.
+- No secrets in Git.
+- No Blob URL exposure to the client.
+- No Public Blob Store.
+- No migration without a verified backup first.
+- No Windows project/DataRoot changes without explicit user instruction.
+- No Windows/Web connection without a written Migration plan.
+- No automatic stock reduction without a dedicated phase.
+- No Real-time Sync without an advanced Conflict strategy.
+- No hard-delete of business records except rare documented exceptions.
+- Every significant business action must write an Audit Log entry (once Audit exists).
+
+FUTURE PHASES (priority order) — ALL STATUS: NOT STARTED
+--------------------------------------------------------
+
+Phase 1 — Multi-user roles and permissions
+Status: NOT STARTED
+Dependencies: None (first recommended next phase)
+Goal: Replace single admin login with Admin / Staff / Read-only roles; session per user; identity for audit.
+Build: roles; session per user; UI+API permission checks.
+Do not: real-time sync; Windows bridge; auto inventory; multi-business billing.
+Risks: privilege escalation if API does not enforce roles; breaking single-admin sessions.
+Required tests: role login; Staff blocked from Admin actions; Read-only cannot mutate; auth/sync regression.
+Dependency note: next recommended foundation.
+
+Phase 2 — Full Audit Log foundation
+Status: NOT STARTED
+Dependencies: Phase 1 strongly recommended
+Goal: Append-only who/when/before/after trail; no audit deletion.
+Build: create/edit/cancel actor; timestamp; before/after; immutable store; review/export UI.
+Do not: OCR/AI; hard-delete business rows “because audit exists”; real-time sync.
+Risks: PII growth; never log secrets.
+Required tests: actions write audit; cannot delete audit via API; no secrets; module regression.
+
+Phase 3 — Real-time synchronization
+Status: NOT STARTED
+Dependencies: conflict design MUST exist first; Phases 1–2 recommended
+Goal: live multi-device consistency without silent overwrite.
+Build: WebSocket/SSE/managed realtime; reconnect; optimistic updates + rollback; consistency rules.
+Do not: Windows auto sync; skip conflict design; auto stock reductions.
+Risks: silent overwrite; offline races; cost/rate limits.
+Required tests: simultaneous edit conflict; reconnect; no silent higher-revision overwrite; sync+security regression.
+
+Phase 4 — Windows ↔ Web connection / shared backend
+Status: NOT STARTED
+Dependencies: written Migration plan; backups; prefer Phases 1–2
+Goal: controlled interoperability or shared backend.
+Build: shared backend/contract; schema mapping; cross-platform conflicts; offline rules; dry-run migration.
+Do not: Windows changes without explicit instruction + full backup; overwrite production without verify; mix Test WS with DataRoot.
+Risks: corruption; duplicate counters; semantic mismatches.
+Required tests: mapping on Test data; conflict cases; backup+restore before cutover; Windows/DataRoot untouched unless approved.
+
+Phase 5 — Advanced inventory
+Status: NOT STARTED
+Dependencies: basic inventory done; Audit recommended
+Goal: warehouses, locations, transfers, reservations, issue/reversal, stock take, suppliers/POs.
+Do not: auto decrease on order create; GPS/routes.
+Risks: negative stock races; broken atomicity.
+Required tests: transfer/reserve/issue atomicity; two-device stock; history immutability.
+
+Phase 6 — Automatic stock reduction
+Status: NOT STARTED
+Dependencies: Phase 5 / reservations + explicit business event
+Goal: reduce stock only at Dispatch (or approved event), atomically, with reservation consumption and rollback.
+Do not: deduct on order create alone; deduct without concurrency strategy; mutate from print/preview.
+Risks: double issue; partial failure.
+Required tests: confirm alone does not reduce; dispatch once; rollback on fail; two-device conflict.
+
+Phase 7 — Advanced payments
+Status: NOT STARTED
+Dependencies: orders/deliveries done; Audit recommended
+Goal: partial payments, multiple payments, balances, cancel/refund hooks, extra methods, audit.
+Do not: hard-delete payment history; fake paid without ledger.
+Risks: balance drift; decimal errors.
+Required tests: partial/full math; cancel/refund trail; COD still works; sync conflicts.
+
+Phase 8 — Advanced delivery statuses
+Status: NOT STARTED
+Dependencies: deliveries by area done
+Goal: ready, outForDelivery, delivered, failed, noAnswer, refused, postponed, returned.
+Do not: drivers/routes/GPS; auto stock unless Phase 6 wired intentionally.
+Risks: illegal transitions; snapshot mutation.
+Required tests: transitions; filters; no unintended stock/payment side effects; labels non-mutating.
+
+Phase 9 — Drivers, vehicles, and routes
+Status: NOT STARTED
+Dependencies: Phase 8 recommended
+Goal: drivers, vehicles, routes, stops, conflict checks, capacity — NO GPS in this phase.
+Do not: GPS; native driver app (Phase 19).
+Risks: double-booking; orphan stops.
+Required tests: conflicts; capacity; cancel unassign; deliveries/labels regression.
+
+Phase 10 — Proof of Delivery
+Status: NOT STARTED
+Dependencies: Phase 8; private storage; permissions (Phase 1)
+Goal: recipient name, signature, time, note, photo; secured permissions and backup.
+Do not: Public Blob; unauthorized Blob URL exposure.
+Risks: storage cost; PII leak.
+Required tests: auth required; no forbidden URL leakage; delivered/POD rules; backup of metadata.
+
+Phase 11 — Delivery notes / shipping documents
+Status: NOT STARTED
+Dependencies: delivery snapshots; printing patterns
+Goal: with/without price; PDF; document number; snapshot; preview; batch print.
+Do not: mutate order/stock from print; business data in URLs.
+Risks: snapshot drift; layout regressions vs A4 labels.
+Required tests: preview non-mutating; unique numbers; batch breaks; session/label regression.
+
+Phase 12 — Advanced labels
+Status: NOT STARTED
+Dependencies: A4 labels done
+Goal: A6, 10x15, QR, barcode, package 1 of X, print history, printer profiles.
+Do not: OCR/AI; cloud selection sync by default.
+Risks: breaking 3x6 A4; silent truncation (forbidden — keep continuation).
+Required tests: existing A4 closeout still pass; new size math; continuation/clean text; session preview protection.
+
+Phase 13 — Returns and exchanges
+Status: NOT STARTED
+Dependencies: orders/deliveries/inventory; Audit
+Goal: return, exchange, condition, return-to-stock rules, link to order/delivery, audit.
+Do not: silent stock increase without movement; hard-delete original order.
+Risks: double stock return; broken payment links.
+Required tests: movements only; link integrity; concurrent conflict; audit immutability.
+
+Phase 14 — Refunds and credit notes
+Status: NOT STARTED
+Dependencies: Phase 7 recommended; Audit
+Goal: refund, credit note, original payment link, no hard delete, audit.
+Do not: edit paid history in place without trail; delete incomes/expenses to “fix” totals.
+Risks: ledger imbalance.
+Required tests: refund limits; original readable; report consistency later; sync safety.
+
+Phase 15 — Business reports
+Status: NOT STARTED
+Dependencies: stable model; richer payments/inventory as needed
+Goal: sales by period/customer/product; inventory; movements; deliveries; collections; balances; returns.
+Do not: mutate source from reports; export secrets/PII publicly.
+Risks: wrong aggregates; performance.
+Required tests: fixture totals; empty filters; permission gating; no mutation.
+
+Phase 16 — Advanced dashboard
+Status: NOT STARTED
+Dependencies: Phase 15 recommended
+Goal: KPIs for sales, collections, inventory, deliveries, shortages, returns, user performance.
+Do not: unrelated marketing chrome; default external AI.
+Risks: stale vs revision; mobile overflow.
+Required tests: numbers match reports; mobile safe-area; auth on APIs.
+
+Phase 17 — Receipt Inbox / OCR
+Status: NOT STARTED
+Dependencies: secure storage; review UX; Audit preferred
+Goal: local OCR first; mandatory Review before Save; no auto write; cloud OCR opt-in only.
+Do not: auto-create expenses; upload all docs to third parties by default.
+Risks: wrong amounts; unexpected PII to cloud.
+Required tests: review gate; opt-in default off; no secrets in logs; income/expense regression.
+
+Phase 18 — Future AI features
+Status: NOT STARTED
+Dependencies: secure server-only API key; opt-in; audit; review
+Goal: optional AI assistance without silent exfiltration.
+Build: server env key; opt-in; human review; audit; no automatic document upload.
+Do not: browser keys; auto-apply AI to production entities.
+Risks: content leakage; cost runaway.
+Required tests: key never in client/Git; opt-in false; unreviewed apply rejected; audit on accept.
+
+Phase 19 — Native mobile app
+Status: NOT STARTED
+Dependencies: stable API/auth/sync; multi-user + conflict strategy preferred
+Goal: Android/iPhone; offline; sync; push; secure local storage.
+Do not: overnight Windows replacement without migration; insecure token storage.
+Risks: divergent logic; offline conflicts.
+Required tests: offline then sync; token security; Web parity smoke; push opt-in.
+
+Phase 20 — Notifications
+Status: NOT STARTED
+Dependencies: reliable domain events; multi-user helpful
+Goal: low stock; delivery today; untouched order; conflict; payment overdue.
+Do not: spam without preferences; insecure PII channels.
+Risks: noise; duplicates after reconnect.
+Required tests: single trigger; preference off; conflict alert; auth.
+
+Phase 21 — Multi-business / multi-account
+Status: NOT STARTED
+Dependencies: multi-user; strong isolation; billing design
+Goal: multiple businesses; hard data isolation; permissions; future billing.
+Do not: shared mutable counters across tenants; cross-tenant list/get.
+Risks: tenant leak (critical).
+Required tests: cross-tenant deny; path isolation; per-tenant backup; security suite.
+
+Phase 22 — Advanced backups and restore
+Status: NOT STARTED
+Dependencies: Private Blob; admin roles
+Goal: scheduled backups; retention; restore UI; DR runbooks; verification (manifest/SHA).
+Do not: commit backups to Git; restore production without confirmation + dry-run.
+Risks: wrong revision restore; incomplete POD binaries later.
+Required tests: verifiable archive; dry-run missing/extra/sha=0; retention policy; Admin-only access.
+
+SUGGESTED SEQUENCING
+--------------------
+1 Multi-user roles
+2 Audit log
+3 Real-time sync (after conflict design)
+4 Windows/Web shared backend or migration
+5 Advanced inventory
+6 Automatic stock reduction at Dispatch
+7 Advanced payments
+8 Delivery statuses
+9 Drivers/vehicles/routes (no GPS)
+10 Proof of Delivery
+11 Delivery documents
+12 Advanced labels
+13 Returns/exchanges
+14 Refunds/credit notes
+15 Reports
+16 Dashboard
+17 Receipt Inbox / OCR
+18 AI (opt-in)
+19 Native mobile
+20 Notifications
+21 Multi-business
+22 Advanced backup/restore
+
+CURRENT STOP POINT
+------------------
+All 8 initial Production tasks are complete.
+The system is in production with the modules listed above, Private Blob, manual sync, and basic conflict protection.
+
+NEXT RECOMMENDED PHASE
+----------------------
+MULTI-USER ROLES AND AUDIT LOG FOUNDATION
+(Phases 1-2)
+
+Do not start this phase without explicit user approval.
