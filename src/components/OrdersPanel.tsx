@@ -4,13 +4,17 @@ import { useMemo, useState } from "react";
 import { useKupaStore, formatMoney } from "@/lib/store";
 import {
   addressFromCustomer,
+  buildCopiedOrderDraft,
   buildOrderItemFromProduct,
   calcLineTotal,
-  calcOrderTotal,
+  calcOrderGrandTotal,
+  calcOrderItemsSubtotal,
   findDuplicateProductLine,
   formatAddressText,
   orderStatusLabel,
+  parseShippingFee,
   paymentTypeLabel,
+  sanitizeShippingFee,
   snapshotFromCustomer,
   validateOrderDraft,
   type OrderDraftInput,
@@ -92,6 +96,7 @@ function emptyDraft(): OrderDraftInput {
       updatedAt: "",
     }),
     items: [],
+    shippingFee: 0,
     orderNotes: "",
     paymentType: "cashOnDelivery",
   };
@@ -196,7 +201,9 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
     };
   }, [store.orders]);
 
-  const total = calcOrderTotal(draft.items);
+  const itemsSubtotal = calcOrderItemsSubtotal(draft.items);
+  const shippingFee = sanitizeShippingFee(draft.shippingFee);
+  const total = calcOrderGrandTotal(itemsSubtotal, shippingFee);
 
   function markFormDirty() {
     setFormDirty(true);
@@ -353,6 +360,7 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
       deliveryAreaSnapshot: o.deliveryAreaSnapshot,
       deliveryAddressSnapshot: { ...o.deliveryAddressSnapshot },
       items: o.items.map((it) => ({ ...it, productSnapshot: { ...it.productSnapshot } })),
+      shippingFee: sanitizeShippingFee(o.shippingFee),
       orderNotes: o.orderNotes,
       paymentType: "cashOnDelivery",
     });
@@ -498,8 +506,16 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
                       {o.createdAt ? new Date(o.createdAt).toLocaleString("he-IL") : ""}
                     </p>
                   </div>
-                  <div className="shrink-0 text-left">
+                  <div className="shrink-0 text-left" data-mobile-id="orders.mobile.list.totalAmount">
                     <p className="font-semibold">{formatMoney(o.totalAmount)}</p>
+                    {sanitizeShippingFee(o.shippingFee) > 0 ? (
+                      <p
+                        className="mt-0.5 text-xs text-[var(--muted)]"
+                        data-mobile-id="orders.mobile.summary.shippingFee"
+                      >
+                        משלוח {formatMoney(sanitizeShippingFee(o.shippingFee))}
+                      </p>
+                    ) : null}
                     <button
                       type="button"
                       className="mt-2 rounded-lg border px-3 py-2 text-xs font-semibold"
@@ -571,7 +587,23 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-lg font-semibold">סה״כ: {formatMoney(o.totalAmount)}</p>
+          <div className="mt-3 space-y-1 text-sm">
+            <p className="flex justify-between gap-2" data-mobile-id="orders.mobile.details.itemsSubtotal">
+              <span>סכום מוצרים</span>
+              <span>{formatMoney(o.itemsSubtotal ?? calcOrderItemsSubtotal(o.items))}</span>
+            </p>
+            <p className="flex justify-between gap-2" data-mobile-id="orders.mobile.details.shippingFee">
+              <span>מחיר משלוח</span>
+              <span>{formatMoney(sanitizeShippingFee(o.shippingFee))}</span>
+            </p>
+            <p
+              className="flex justify-between gap-2 text-lg font-semibold"
+              data-mobile-id="orders.mobile.details.totalAmount"
+            >
+              <span>סה״כ הזמנה</span>
+              <span>{formatMoney(o.totalAmount)}</span>
+            </p>
+          </div>
           {o.status === "cancelled" && o.cancellationReason ? (
             <p className="mt-2 text-sm text-rose-700">סיבת ביטול: {o.cancellationReason}</p>
           ) : null}
@@ -613,12 +645,16 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
               type="button"
               className="rounded-xl border py-3"
               onClick={() => {
-                const res = store.copyOrder(o.id);
-                if (!res.ok) setError(res.error);
-                else {
-                  setMessage("הזמנה שוכפלה");
-                  setMode("list");
-                }
+                setEditingId(null);
+                setDraft(buildCopiedOrderDraft(o));
+                setFormDirty(true);
+                setStep(4);
+                setError("");
+                setMessage("עותק מוכן — ניתן לערוך מחיר משלוח לפני שמירה");
+                setMode("form");
+                setViewOrder(null);
+                setCustomerPickMode("existing");
+                resetInlineCustomerForm();
               }}
             >
               שכפול
@@ -707,7 +743,7 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
 
   function renderForm() {
     return (
-      <div className="space-y-4 pb-28">
+      <div className="space-y-4 overflow-x-hidden pb-36">
         <div className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
           <div className="flex items-center justify-between">
             <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">
@@ -1206,7 +1242,7 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
           )}
 
           {step === 4 && (
-            <div className="mt-3 space-y-2 text-sm">
+            <div className="mt-3 space-y-3 text-sm overflow-x-hidden">
               <p className="font-medium">סיכום</p>
               <p>
                 {draft.customerSnapshot.customerName || draft.customerSnapshot.businessName} ·{" "}
@@ -1214,8 +1250,60 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
               </p>
               <p>{formatAddressText(draft.deliveryAddressSnapshot)}</p>
               <p>אזור: {deliveryAreaLabel[draft.deliveryAreaSnapshot]}</p>
-              <p>פריטים: {draft.items.length}</p>
-              <p className="text-lg font-semibold">סה״כ הזמנה: {formatMoney(total)}</p>
+              <ul className="space-y-2">
+                {draft.items.map((it) => (
+                  <li key={it.id} className="rounded-xl border bg-white px-3 py-2">
+                    <p className="font-medium">{it.productSnapshot.name}</p>
+                    <p className="text-[var(--muted)]">
+                      {it.quantity} × {formatMoney(it.unitPrice)} = {formatMoney(it.lineTotal)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              <p
+                className="flex justify-between gap-2"
+                data-mobile-id="orders.mobile.form.itemsSubtotal"
+              >
+                <span>סכום מוצרים</span>
+                <span>{formatMoney(itemsSubtotal)}</span>
+              </p>
+              <label
+                className="block"
+                data-mobile-id="orders.mobile.form.shippingFee"
+              >
+                מחיר משלוח
+                <input
+                  data-testid="order-shipping-fee"
+                  className="mt-1 w-full min-h-12 rounded-xl border px-3 py-3 text-base"
+                  type="text"
+                  inputMode="decimal"
+                  dir="ltr"
+                  value={
+                    draft.shippingFee === undefined || draft.shippingFee === null
+                      ? ""
+                      : String(draft.shippingFee)
+                  }
+                  onChange={(e) => {
+                    const raw = e.target.value.trim().replace(",", ".");
+                    if (raw === "") {
+                      setDraft((d) => ({ ...d, shippingFee: 0 }));
+                      markFormDirty();
+                      return;
+                    }
+                    const parsed = parseShippingFee(raw);
+                    if (parsed === null) return;
+                    setDraft((d) => ({ ...d, shippingFee: parsed }));
+                    markFormDirty();
+                  }}
+                />
+              </label>
+              <p
+                className="flex justify-between gap-2 text-lg font-semibold"
+                data-mobile-id="orders.mobile.form.totalAmount"
+              >
+                <span>סה״כ הזמנה</span>
+                <span>{formatMoney(total)}</span>
+              </p>
               <label className="block">
                 הערות להזמנה
                 <input
@@ -1231,9 +1319,20 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
           )}
 
           {step === 5 && (
-            <div className="mt-3 space-y-3">
+            <div className="mt-3 space-y-3 overflow-x-hidden">
               <p className="text-sm">שמירה מקומית. לאחר מכן ניתן לשמור לענן ממסך הסנכרון.</p>
-              <p className="text-lg font-semibold">סה״כ: {formatMoney(total)}</p>
+              <p className="flex justify-between gap-2 text-sm" data-mobile-id="orders.mobile.form.itemsSubtotal">
+                <span>סכום מוצרים</span>
+                <span>{formatMoney(itemsSubtotal)}</span>
+              </p>
+              <p className="flex justify-between gap-2 text-sm" data-mobile-id="orders.mobile.form.shippingFee">
+                <span>מחיר משלוח</span>
+                <span>{formatMoney(shippingFee)}</span>
+              </p>
+              <p className="flex justify-between gap-2 text-lg font-semibold" data-mobile-id="orders.mobile.form.totalAmount">
+                <span>סה״כ הזמנה</span>
+                <span>{formatMoney(total)}</span>
+              </p>
               {error ? <p className="text-sm text-rose-700">{error}</p> : null}
               <button
                 type="button"
@@ -1278,10 +1377,12 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
           </div>
         </div>
 
-        <div className="fixed bottom-16 left-0 right-0 z-30 border-t border-[var(--line)] bg-[var(--panel)]/95 px-4 py-3 backdrop-blur pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <div className="mx-auto flex max-w-lg items-center justify-between">
-            <span className="text-sm text-[var(--muted)]">סה״כ הזמנה</span>
-            <span className="text-lg font-semibold">{formatMoney(total)}</span>
+        <div className="fixed bottom-16 left-0 right-0 z-30 border-t border-[var(--line)] bg-[var(--panel)]/95 px-4 py-3 backdrop-blur pb-[max(0.75rem,env(safe-area-inset-bottom))] overflow-x-hidden">
+          <div className="mx-auto flex max-w-lg min-w-0 items-center justify-between gap-2">
+            <span className="text-sm text-[var(--muted)] shrink-0">סה״כ הזמנה</span>
+            <span className="text-lg font-semibold truncate" data-mobile-id="orders.mobile.form.totalAmount">
+              {formatMoney(total)}
+            </span>
           </div>
         </div>
 

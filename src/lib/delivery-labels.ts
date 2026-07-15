@@ -26,6 +26,8 @@ export type DeliveryLabelContent = {
   areaLabel: string;
   productLines: string[];
   productsFullText: string;
+  itemsSubtotal: number;
+  shippingFee: number;
   totalAmount: number;
   paymentLabel: string;
   scheduledDate: string;
@@ -89,6 +91,8 @@ export function expandDeliveryToLabels(d: Delivery): DeliveryLabelContent[] {
   );
   const deliveryNumber = safeDisplayText(d.deliveryNumber);
   const orderNumber = safeDisplayText(d.orderNumberSnapshot);
+  const itemsSubtotal = safeMoneyAmount(d.itemsSubtotalSnapshot);
+  const shippingFee = safeMoneyAmount(d.shippingFeeSnapshot);
   const totalAmount = safeMoneyAmount(d.orderTotalSnapshot);
   const scheduledDate = safeDisplayText(d.scheduledDate);
 
@@ -106,6 +110,8 @@ export function expandDeliveryToLabels(d: Delivery): DeliveryLabelContent[] {
       areaLabel: isContinuation ? areaLabel : areaLabel,
       productLines,
       productsFullText: productLines.join("\n"),
+      itemsSubtotal: isContinuation ? 0 : itemsSubtotal,
+      shippingFee: isContinuation ? 0 : shippingFee,
       totalAmount: isContinuation ? 0 : totalAmount,
       paymentLabel: isContinuation
         ? `המשך מדבקה ${partIndex}/${partTotal} · ${deliveryNumber}`

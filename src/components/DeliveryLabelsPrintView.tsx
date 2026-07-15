@@ -90,6 +90,12 @@ function LabelBody({ label }: { label: DeliveryLabelContent }) {
           <li key={i}>{line}</li>
         ))}
       </ul>
+      {!label.isContinuation && label.shippingFee > 0 ? (
+        <p className="delivery-label-shipping" data-testid="lbl-shipping">
+          <span>מחיר משלוח</span>
+          <strong>{formatMoney(label.shippingFee)}</strong>
+        </p>
+      ) : null}
       <p className="delivery-label-total" data-testid="lbl-total">
         <span>{label.paymentLabel}</span>
         {!label.isContinuation ? <strong>{formatMoney(label.totalAmount)}</strong> : null}

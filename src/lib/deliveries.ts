@@ -192,6 +192,8 @@ export function normalizeDelivery(raw: unknown, index = 0): Delivery {
     "customerSnapshot",
     "addressSnapshot",
     "itemsSnapshot",
+    "itemsSubtotalSnapshot",
+    "shippingFeeSnapshot",
     "orderTotalSnapshot",
     "paymentTypeSnapshot",
     "deliveryNotes",
@@ -207,10 +209,27 @@ export function normalizeDelivery(raw: unknown, index = 0): Delivery {
     }
   }
   const itemsRaw = Array.isArray(o.itemsSnapshot) ? o.itemsSnapshot : [];
+  const itemsSnapshot = itemsRaw.map((it) => normalizeItemSnapshot(it));
   const scheduledRaw = str(o.scheduledDate).trim();
   const scheduledDate = /^\d{4}-\d{2}-\d{2}$/.test(scheduledRaw) ? scheduledRaw : "";
   const paymentType: PaymentType =
     o.paymentTypeSnapshot === "cashOnDelivery" ? "cashOnDelivery" : "cashOnDelivery";
+
+  const itemsSubtotalFromLines = roundMoney(
+    itemsSnapshot.reduce((a, it) => a + (Number.isFinite(it.lineTotal) ? it.lineTotal : 0), 0)
+  );
+  const hasItemsSubtotal = o.itemsSubtotalSnapshot !== undefined && o.itemsSubtotalSnapshot !== null;
+  const itemsSubtotalSnapshot = hasItemsSubtotal
+    ? roundMoney(Math.max(0, finiteNum(o.itemsSubtotalSnapshot, 0)))
+    : itemsSubtotalFromLines;
+  const hasShip = o.shippingFeeSnapshot !== undefined && o.shippingFeeSnapshot !== null;
+  const shippingFeeSnapshot = hasShip
+    ? roundMoney(Math.max(0, finiteNum(o.shippingFeeSnapshot, 0)))
+    : 0;
+  const hasTotal = o.orderTotalSnapshot !== undefined && o.orderTotalSnapshot !== null;
+  const orderTotalSnapshot = hasTotal
+    ? roundMoney(Math.max(0, finiteNum(o.orderTotalSnapshot, 0)))
+    : roundMoney(itemsSubtotalSnapshot + shippingFeeSnapshot);
 
   const delivery: Delivery = {
     id: str(o.id) || `legacy-dlv-${index + 1}`,
@@ -222,8 +241,10 @@ export function normalizeDelivery(raw: unknown, index = 0): Delivery {
     deliveryAreaSnapshot: normalizeArea(o.deliveryAreaSnapshot),
     customerSnapshot: normalizeCustomerSnapshot(o.customerSnapshot || emptyCustomerSnapshot()),
     addressSnapshot: normalizeAddressSnapshot(o.addressSnapshot || emptyAddressSnapshot()),
-    itemsSnapshot: itemsRaw.map((it) => normalizeItemSnapshot(it)),
-    orderTotalSnapshot: roundMoney(Math.max(0, finiteNum(o.orderTotalSnapshot, 0))),
+    itemsSnapshot,
+    itemsSubtotalSnapshot,
+    shippingFeeSnapshot,
+    orderTotalSnapshot,
     paymentTypeSnapshot: paymentType,
     deliveryNotes: str(o.deliveryNotes),
     cancellationReason: str(o.cancellationReason),
@@ -333,6 +354,8 @@ export function allocateDelivery(data: AppData, input: DeliveryCreateInput): App
     customerSnapshot: { ...order.customerSnapshot },
     addressSnapshot: { ...order.deliveryAddressSnapshot },
     itemsSnapshot: itemsSnapshotFromOrder(order),
+    itemsSubtotalSnapshot: roundMoney(Math.max(0, order.itemsSubtotal ?? 0)),
+    shippingFeeSnapshot: roundMoney(Math.max(0, order.shippingFee ?? 0)),
     orderTotalSnapshot: roundMoney(Math.max(0, order.totalAmount || 0)),
     paymentTypeSnapshot: "cashOnDelivery",
     deliveryNotes: String(input.deliveryNotes || "").trim(),
@@ -403,6 +426,8 @@ export function updateDeliveryInData(
     customerSnapshot: existing.customerSnapshot,
     addressSnapshot: existing.addressSnapshot,
     itemsSnapshot: existing.itemsSnapshot,
+    itemsSubtotalSnapshot: existing.itemsSubtotalSnapshot,
+    shippingFeeSnapshot: existing.shippingFeeSnapshot,
     orderTotalSnapshot: existing.orderTotalSnapshot,
     paymentTypeSnapshot: "cashOnDelivery",
     createdAt: existing.createdAt,
@@ -466,6 +491,8 @@ export function refreshDeliveryFromOrder(
     customerSnapshot: { ...order.customerSnapshot },
     addressSnapshot: { ...order.deliveryAddressSnapshot },
     itemsSnapshot: itemsSnapshotFromOrder(order),
+    itemsSubtotalSnapshot: roundMoney(Math.max(0, order.itemsSubtotal ?? 0)),
+    shippingFeeSnapshot: roundMoney(Math.max(0, order.shippingFee ?? 0)),
     orderTotalSnapshot: roundMoney(Math.max(0, order.totalAmount || 0)),
     paymentTypeSnapshot: "cashOnDelivery",
     // keep delivery's own area/date/notes/status

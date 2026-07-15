@@ -59,8 +59,36 @@ export function calcLineTotal(quantity: number, unitPrice: number): number {
   return roundMoney(quantity * unitPrice);
 }
 
+/** Product lines only — alias kept for call sites / tests. */
 export function calcOrderTotal(items: OrderItem[]): number {
+  return calcOrderItemsSubtotal(items);
+}
+
+export function calcOrderItemsSubtotal(items: OrderItem[]): number {
   return roundMoney(items.reduce((acc, it) => acc + (Number.isFinite(it.lineTotal) ? it.lineTotal : 0), 0));
+}
+
+/** Parse shipping fee: default 0; reject NaN/Infinity/negative → null (invalid). */
+export function parseShippingFee(raw: unknown): number | null {
+  if (raw === undefined || raw === null || raw === "") return 0;
+  const n = typeof raw === "number" ? raw : Number(String(raw).trim().replace(",", "."));
+  if (!Number.isFinite(n) || Number.isNaN(n) || n < 0) return null;
+  return roundMoney(n);
+}
+
+export function sanitizeShippingFee(raw: unknown): number {
+  const n = parseShippingFee(raw);
+  return n === null ? 0 : n;
+}
+
+export function calcOrderGrandTotal(itemsSubtotal: number, shippingFee: number): number {
+  const sub = Number.isFinite(itemsSubtotal) && itemsSubtotal >= 0 ? itemsSubtotal : 0;
+  const ship = Number.isFinite(shippingFee) && shippingFee >= 0 ? shippingFee : 0;
+  return roundMoney(sub + ship);
+}
+
+export function formatMoney2(n: number): string {
+  return roundMoney(n).toFixed(2);
 }
 
 export function formatOrderNumber(n: number): string {
@@ -284,6 +312,8 @@ export function normalizeOrder(raw: unknown, index = 0): Order {
     "customerId",
     "customerSnapshot",
     "items",
+    "itemsSubtotal",
+    "shippingFee",
     "totalAmount",
     "paymentType",
     "deliveryAreaSnapshot",
@@ -300,7 +330,9 @@ export function normalizeOrder(raw: unknown, index = 0): Order {
     if (!known.has(k) && k !== "__proto__" && k !== "constructor" && k !== "prototype") extras[k] = v;
   }
   const items = Array.isArray(o.items) ? o.items.map((it, i) => normalizeOrderItem(it, i)) : [];
-  const totalAmount = calcOrderTotal(items);
+  const itemsSubtotal = calcOrderItemsSubtotal(items);
+  const shippingFee = sanitizeShippingFee(o.shippingFee);
+  const totalAmount = calcOrderGrandTotal(itemsSubtotal, shippingFee);
   const now = stamp();
   const order: Order = {
     id: str(o.id) || `legacy-ord-${index + 1}`,
@@ -309,6 +341,8 @@ export function normalizeOrder(raw: unknown, index = 0): Order {
     customerId: str(o.customerId),
     customerSnapshot: normalizeCustomerSnapshot(o.customerSnapshot),
     items,
+    itemsSubtotal,
+    shippingFee,
     totalAmount,
     paymentType: "cashOnDelivery",
     deliveryAreaSnapshot: normalizeArea(o.deliveryAreaSnapshot),
@@ -351,6 +385,7 @@ export type OrderDraftInput = {
   deliveryAreaSnapshot: DeliveryArea;
   deliveryAddressSnapshot: DeliveryAddressSnapshot;
   items: OrderItem[];
+  shippingFee?: number;
   orderNotes?: string;
   paymentType?: "cashOnDelivery";
 };
@@ -374,7 +409,10 @@ export function validateOrderDraft(input: OrderDraftInput): ValidationResult {
       return { ok: false, error: "סכום שורה אינו תקין" };
     }
   }
-  const total = calcOrderTotal(input.items);
+  const ship = parseShippingFee(input.shippingFee ?? 0);
+  if (ship === null) return { ok: false, error: "מחיר משלוח אינו תקין" };
+  const itemsSubtotal = calcOrderItemsSubtotal(input.items);
+  const total = calcOrderGrandTotal(itemsSubtotal, ship);
   if (!Number.isFinite(total) || Number.isNaN(total)) return { ok: false, error: "סכום הזמנה אינו תקין" };
   return { ok: true };
 }
@@ -404,6 +442,8 @@ export function allocateOrder(
     ...it,
     lineTotal: calcLineTotal(it.quantity, it.unitPrice),
   }));
+  const shippingFee = sanitizeShippingFee(input.shippingFee);
+  const itemsSubtotal = calcOrderItemsSubtotal(items);
   const last = resolveOrderCounter(data);
   const next = last + 1;
   const now = stamp();
@@ -414,7 +454,9 @@ export function allocateOrder(
     customerId: input.customerId,
     customerSnapshot: input.customerSnapshot,
     items,
-    totalAmount: calcOrderTotal(items),
+    itemsSubtotal,
+    shippingFee,
+    totalAmount: calcOrderGrandTotal(itemsSubtotal, shippingFee),
     paymentType: "cashOnDelivery",
     deliveryAreaSnapshot: input.deliveryAreaSnapshot,
     deliveryAddressSnapshot: input.deliveryAddressSnapshot,
@@ -456,6 +498,7 @@ export function updateOrderInData(
     deliveryAreaSnapshot: patch.deliveryAreaSnapshot ?? existing.deliveryAreaSnapshot,
     deliveryAddressSnapshot: patch.deliveryAddressSnapshot ?? existing.deliveryAddressSnapshot,
     items: patch.items ?? existing.items,
+    shippingFee: patch.shippingFee !== undefined ? patch.shippingFee : existing.shippingFee,
     orderNotes: patch.orderNotes ?? existing.orderNotes,
   };
   const v = validateOrderDraft(draft);
@@ -465,6 +508,8 @@ export function updateOrderInData(
     ...it,
     lineTotal: calcLineTotal(it.quantity, it.unitPrice),
   }));
+  const shippingFee = sanitizeShippingFee(draft.shippingFee);
+  const itemsSubtotal = calcOrderItemsSubtotal(items);
   const now = stamp();
   const order = normalizeOrder({
     ...existing,
@@ -473,7 +518,9 @@ export function updateOrderInData(
     deliveryAreaSnapshot: draft.deliveryAreaSnapshot,
     deliveryAddressSnapshot: draft.deliveryAddressSnapshot,
     items,
-    totalAmount: calcOrderTotal(items),
+    itemsSubtotal,
+    shippingFee,
+    totalAmount: calcOrderGrandTotal(itemsSubtotal, shippingFee),
     orderNotes: draft.orderNotes || "",
     status: existing.status,
     orderNumber: existing.orderNumber,
@@ -505,11 +552,13 @@ export function confirmOrderInData(
     deliveryAreaSnapshot: existing.deliveryAreaSnapshot,
     deliveryAddressSnapshot: existing.deliveryAddressSnapshot,
     items: existing.items,
+    shippingFee: existing.shippingFee,
     orderNotes: existing.orderNotes,
   });
   if (!v.ok) return { error: v.error };
   const now = stamp();
-  const order = { ...existing, status: "confirmed" as const, confirmedAt: now, updatedAt: now };
+  const normalized = normalizeOrder({ ...existing, status: "confirmed", confirmedAt: now, updatedAt: now });
+  const order = { ...normalized, status: "confirmed" as const, confirmedAt: now, updatedAt: now };
   return {
     order,
     data: {
@@ -567,6 +616,7 @@ export function buildCopiedOrderDraft(source: Order): OrderDraftInput {
       productSnapshot: { ...it.productSnapshot },
       lineTotal: calcLineTotal(it.quantity, it.unitPrice),
     })),
+    shippingFee: sanitizeShippingFee(source.shippingFee),
     orderNotes: source.orderNotes || "",
     paymentType: "cashOnDelivery",
   };

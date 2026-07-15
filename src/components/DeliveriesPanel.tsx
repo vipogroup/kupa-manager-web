@@ -341,6 +341,12 @@ export function DeliveriesPanel({ initialOrderId }: { initialOrderId?: string | 
     const previewCustomer = snapshotSource?.customerSnapshot || selectedOrderPreview?.customerSnapshot;
     const previewAddress =
       snapshotSource?.addressSnapshot || selectedOrderPreview?.deliveryAddressSnapshot;
+    const previewItemsSubtotal =
+      snapshotSource?.itemsSubtotalSnapshot ??
+      selectedOrderPreview?.itemsSubtotal ??
+      0;
+    const previewShipping =
+      snapshotSource?.shippingFeeSnapshot ?? selectedOrderPreview?.shippingFee ?? 0;
     const previewTotal =
       snapshotSource?.orderTotalSnapshot ?? selectedOrderPreview?.totalAmount ?? 0;
     const products = previewItems ? formatProductsSummary(previewItems, { maxLines: 4 }) : null;
@@ -463,9 +469,21 @@ export function DeliveriesPanel({ initialOrderId }: { initialOrderId?: string | 
                   ) : null}
                 </div>
               ) : null}
-              <p className="font-semibold">
-                סה״כ לתשלום במזומן: {formatMoney(previewTotal)} ({paymentTypeLabel.cashOnDelivery})
-              </p>
+              <div className="space-y-1">
+                <p className="flex justify-between gap-2">
+                  <span>סכום מוצרים</span>
+                  <span>{formatMoney(previewItemsSubtotal)}</span>
+                </p>
+                <p className="flex justify-between gap-2">
+                  <span>מחיר משלוח</span>
+                  <span>{formatMoney(previewShipping)}</span>
+                </p>
+                <p className="flex justify-between gap-2 font-semibold">
+                  <span>סה״כ לתשלום במזומן לשליח</span>
+                  <span>{formatMoney(previewTotal)}</span>
+                </p>
+                <p className="text-xs text-[var(--muted)]">{paymentTypeLabel.cashOnDelivery}</p>
+              </div>
             </div>
           )}
 
@@ -609,9 +627,20 @@ export function DeliveriesPanel({ initialOrderId }: { initialOrderId?: string | 
           {products.moreCount > 0 ? (
             <p className="mt-1 text-xs text-[var(--muted)]">+{products.moreCount} פריטים נוספים</p>
           ) : null}
-          <p className="mt-3 text-lg font-semibold">
-            סה״כ: {formatMoney(d.orderTotalSnapshot)}
-          </p>
+          <div className="mt-3 space-y-1 text-sm">
+            <p className="flex justify-between gap-2">
+              <span>סכום מוצרים</span>
+              <span>{formatMoney(d.itemsSubtotalSnapshot ?? 0)}</span>
+            </p>
+            <p className="flex justify-between gap-2">
+              <span>מחיר משלוח</span>
+              <span>{formatMoney(d.shippingFeeSnapshot ?? 0)}</span>
+            </p>
+            <p className="flex justify-between gap-2 text-lg font-semibold">
+              <span>סה״כ לתשלום במזומן לשליח</span>
+              <span>{formatMoney(d.orderTotalSnapshot)}</span>
+            </p>
+          </div>
           {d.deliveryNotes ? <p className="mt-2 text-sm">הערות: {d.deliveryNotes}</p> : null}
           {cancelled && d.cancellationReason ? (
             <p className="mt-2 text-sm text-rose-700">סיבת ביטול: {d.cancellationReason}</p>

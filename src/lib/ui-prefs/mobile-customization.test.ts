@@ -63,7 +63,12 @@ describe("MOBILE category customization simulator", () => {
     expect(cust).toContain("customers.mobile.list.secondaryPhone");
     expect(cust).toContain("customers.mobile.list.phone");
     expect(elementsForModule("products").map((e) => e.id)).toContain("products.mobile.list.model");
-    expect(elementsForModule("orders").map((e) => e.id)).toContain("orders.mobile.list.fullAddress");
+    const orders = elementsForModule("orders").map((e) => e.id);
+    expect(orders).toContain("orders.mobile.list.fullAddress");
+    expect(orders).toContain("orders.mobile.form.shippingFee");
+    expect(orders).toContain("orders.mobile.form.itemsSubtotal");
+    expect(orders).toContain("orders.mobile.form.totalAmount");
+    expect(orders).toContain("orders.mobile.details.shippingFee");
   });
 
   it("MOBILE-SIM-004 Hide optional field", () => {

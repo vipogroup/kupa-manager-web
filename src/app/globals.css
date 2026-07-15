@@ -140,6 +140,23 @@ html.kupa-mobile-prefs-active [data-mobile-hidden="1"] {
   font-size: 6.8pt;
 }
 
+.delivery-label-shipping {
+  margin: 0;
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2mm;
+  font-size: 6.5pt;
+  border-top: 1px solid #ccc;
+  padding-top: 0.6mm;
+}
+
+.delivery-label-shipping + .delivery-label-total {
+  margin-top: 0.4mm;
+  border-top: none;
+  padding-top: 0;
+}
+
 .delivery-label-total {
   margin: 0;
   margin-top: auto;

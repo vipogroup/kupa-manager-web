@@ -110,6 +110,11 @@ export type Order = {
   customerId: string;
   customerSnapshot: CustomerSnapshot;
   items: OrderItem[];
+  /** Sum of product line totals only (excludes shipping). */
+  itemsSubtotal: number;
+  /** Order shipping fee (≥ 0). Not an inventory product line. */
+  shippingFee: number;
+  /** itemsSubtotal + shippingFee — always recomputed server/local, never trusted from client alone. */
   totalAmount: number;
   paymentType: PaymentType;
   deliveryAreaSnapshot: DeliveryArea;
@@ -169,6 +174,8 @@ export type Delivery = {
   customerSnapshot: CustomerSnapshot;
   addressSnapshot: DeliveryAddressSnapshot;
   itemsSnapshot: DeliveryItemSnapshot[];
+  itemsSubtotalSnapshot: number;
+  shippingFeeSnapshot: number;
   orderTotalSnapshot: number;
   paymentTypeSnapshot: PaymentType;
   deliveryNotes: string;
