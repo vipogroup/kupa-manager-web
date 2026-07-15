@@ -11,9 +11,11 @@ import {
   calcOrderItemsSubtotal,
   findDuplicateProductLine,
   formatAddressText,
+  formatProductModelDisplay,
   orderStatusLabel,
   parseShippingFee,
   paymentTypeLabel,
+  productMatchesSearchQuery,
   sanitizeShippingFee,
   snapshotFromCustomer,
   validateOrderDraft,
@@ -147,13 +149,9 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
   }, [activeCustomers, customerQuery]);
 
   const filteredProducts = useMemo(() => {
-    const q = productQuery.trim().toLowerCase();
+    const q = productQuery.trim();
     if (!q) return activeProducts.slice(0, 20);
-    return activeProducts
-      .filter((p) =>
-        [p.name, p.model, p.sku, p.barcode, p.productNumber].join(" ").toLowerCase().includes(q)
-      )
-      .slice(0, 20);
+    return activeProducts.filter((p) => productMatchesSearchQuery(p, q)).slice(0, 20);
   }, [activeProducts, productQuery]);
 
   const filteredOrders = useMemo(() => {
@@ -579,8 +577,14 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
           ) : null}
           <ul className="mt-3 space-y-2">
             {o.items.map((it) => (
-              <li key={it.id} className="rounded-xl border bg-white px-3 py-2 text-sm">
-                <p className="font-medium">{it.productSnapshot.name}</p>
+              <li key={it.id} className="min-w-0 rounded-xl border bg-white px-3 py-2 text-sm">
+                <p className="break-words font-medium">{it.productSnapshot.name}</p>
+                <p className="break-words text-[var(--muted)]" data-mobile-id="orders.mobile.form.itemModel">
+                  {formatProductModelDisplay(it.productSnapshot.model, {
+                    productNumber: it.productSnapshot.productNumber,
+                    sku: it.productSnapshot.sku,
+                  })}
+                </p>
                 <p className="text-[var(--muted)]">
                   {it.quantity} × {formatMoney(it.unitPrice)} = {formatMoney(it.lineTotal)}
                 </p>
@@ -1122,23 +1126,49 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
           )}
 
           {step === 3 && (
-            <div className="mt-3 space-y-3">
+            <div className="mt-3 space-y-3 overflow-x-hidden">
               <p className="text-sm font-medium">הוספת מוצרים</p>
               <input
-                className="w-full rounded-xl border px-3 py-3"
-                placeholder="חיפוש מוצר"
+                className="w-full min-w-0 rounded-xl border px-3 py-3"
+                placeholder="חיפוש לפי שם, מידה/דגם, SKU או ברקוד"
                 value={productQuery}
                 onChange={(e) => setProductQuery(e.target.value)}
               />
-              <ul className="max-h-40 space-y-2 overflow-y-auto">
+              <ul className="max-h-52 space-y-2 overflow-y-auto overflow-x-hidden">
                 {filteredProducts.map((p) => (
-                  <li key={p.id}>
+                  <li key={p.id} className="min-w-0">
                     <button
                       type="button"
-                      className="w-full rounded-xl border bg-white px-3 py-3 text-right text-sm"
+                      data-testid="order-product-picker-card"
+                      className="w-full min-w-0 rounded-xl border bg-white px-3 py-3 text-right text-sm"
                       onClick={() => tryAddProduct(p)}
                     >
-                      <span className="font-semibold">{p.name}</span>
+                      <span
+                        className="block break-words font-semibold"
+                        data-mobile-id="orders.mobile.form.productPickerName"
+                      >
+                        {p.name}
+                      </span>
+                      <span
+                        className="mt-1 block break-words text-[var(--muted)]"
+                        data-mobile-id="orders.mobile.form.productPickerModel"
+                        data-testid="order-product-picker-model"
+                      >
+                        {formatProductModelDisplay(p.model, {
+                          productNumber: p.productNumber,
+                          sku: p.sku,
+                        })}
+                      </span>
+                      {p.productNumber ? (
+                        <span className="mt-0.5 block break-words text-xs text-[var(--muted)]" dir="ltr">
+                          {p.productNumber}
+                        </span>
+                      ) : null}
+                      {p.sku ? (
+                        <span className="mt-0.5 block break-words text-xs text-[var(--muted)]" dir="ltr">
+                          SKU {p.sku}
+                        </span>
+                      ) : null}
                       <span className="mt-1 block text-[var(--muted)]">{formatMoney(p.salePrice)}</span>
                     </button>
                   </li>
@@ -1146,9 +1176,19 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
               </ul>
               <ul className="space-y-2">
                 {draft.items.map((it) => (
-                  <li key={it.id} className="rounded-xl border bg-white p-3">
-                    <p className="font-medium">{it.productSnapshot.name}</p>
-                    <div className="mt-2 flex items-center gap-2">
+                  <li key={it.id} className="min-w-0 rounded-xl border bg-white p-3">
+                    <p className="break-words font-medium">{it.productSnapshot.name}</p>
+                    <p
+                      className="break-words text-sm text-[var(--muted)]"
+                      data-mobile-id="orders.mobile.form.itemModel"
+                      data-testid="order-item-model"
+                    >
+                      {formatProductModelDisplay(it.productSnapshot.model, {
+                        productNumber: it.productSnapshot.productNumber,
+                        sku: it.productSnapshot.sku,
+                      })}
+                    </p>
+                    <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
                       <button
                         type="button"
                         className="h-10 w-10 rounded-lg border text-lg"
@@ -1252,8 +1292,14 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
               <p>אזור: {deliveryAreaLabel[draft.deliveryAreaSnapshot]}</p>
               <ul className="space-y-2">
                 {draft.items.map((it) => (
-                  <li key={it.id} className="rounded-xl border bg-white px-3 py-2">
-                    <p className="font-medium">{it.productSnapshot.name}</p>
+                  <li key={it.id} className="min-w-0 rounded-xl border bg-white px-3 py-2">
+                    <p className="break-words font-medium">{it.productSnapshot.name}</p>
+                    <p className="break-words text-[var(--muted)]" data-mobile-id="orders.mobile.form.itemModel">
+                      {formatProductModelDisplay(it.productSnapshot.model, {
+                        productNumber: it.productSnapshot.productNumber,
+                        sku: it.productSnapshot.sku,
+                      })}
+                    </p>
                     <p className="text-[var(--muted)]">
                       {it.quantity} × {formatMoney(it.unitPrice)} = {formatMoney(it.lineTotal)}
                     </p>

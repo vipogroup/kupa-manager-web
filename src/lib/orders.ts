@@ -204,6 +204,60 @@ export function snapshotFromProduct(p: Product): ProductSnapshot {
   };
 }
 
+/**
+ * Normalize product search text so dimension multipliers match:
+ * * / × / x (between digits) → same token.
+ */
+export function normalizeProductSearchText(raw: unknown): string {
+  return String(raw ?? "")
+    .toLowerCase()
+    .replace(/[×⁎∗✕✖]/g, "*")
+    .replace(/(\d)\s*[x]\s*(\d)/gi, "$1*$2")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function productSearchHaystack(p: {
+  name?: string;
+  model?: string;
+  sku?: string;
+  barcode?: string;
+  productNumber?: string;
+}): string {
+  return normalizeProductSearchText(
+    [p.name, p.model, p.sku, p.barcode, p.productNumber].filter(Boolean).join(" ")
+  );
+}
+
+export function productMatchesSearchQuery(
+  p: {
+    name?: string;
+    model?: string;
+    sku?: string;
+    barcode?: string;
+    productNumber?: string;
+  },
+  query: string
+): boolean {
+  const q = normalizeProductSearchText(query);
+  if (!q) return true;
+  return productSearchHaystack(p).includes(q);
+}
+
+/** Display line for size/model; falls back to product number / SKU when model empty. */
+export function formatProductModelDisplay(
+  model: string | undefined | null,
+  fallback?: { productNumber?: string; sku?: string }
+): string {
+  const m = String(model ?? "").trim();
+  if (m) return `מידה/דגם: ${m}`;
+  const num = String(fallback?.productNumber ?? "").trim();
+  if (num) return `מס׳ מוצר: ${num}`;
+  const sku = String(fallback?.sku ?? "").trim();
+  if (sku) return `מק״ט: ${sku}`;
+  return "מידה/דגם: —";
+}
+
 export function formatAddressText(a: DeliveryAddressSnapshot): string {
   const parts = [
     [a.street, a.houseNumber].filter(Boolean).join(" "),
