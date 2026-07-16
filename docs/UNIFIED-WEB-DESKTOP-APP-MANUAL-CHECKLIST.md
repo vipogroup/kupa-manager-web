@@ -1,7 +1,7 @@
 # Unified Web Desktop App — Manual Checklist
 
 Production URL: https://kupa-manager-web.vercel.app  
-Web = single source of truth · Windows 3.0.1 = legacy only
+Web Canonical Account Workspace = single source of truth · Windows 3.1.0 = primary desktop UI on that cloud
 
 ## Checklist
 
@@ -28,6 +28,6 @@ Web = single source of truth · Windows 3.0.1 = legacy only
 
 ## Notes
 
-- אין להזין מידע עסקי חדש במסכים המקומיים של Windows.
+- מידע עסקי משותף: להזין בלשוניות Windows הרגילות (מחוברות לענן) או ב-Web/מובייל — אותו Canonical Account Workspace. מודולים עם באנר «מקומי בלבד» נשארים מקומיים.
 - אין Workspace Code.
 - `deviceId` לאבוחון בלבד — לא בוחר מאגר.

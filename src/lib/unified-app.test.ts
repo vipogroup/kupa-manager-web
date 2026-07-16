@@ -216,7 +216,7 @@ describe("UNIFIED-APP installable web + single cloud", () => {
     expect(read("src/app/globals.css")).toContain("80rem");
   });
 
-  it("UNIFIED-APP-041 Windows project unchanged", () => {
+  it("UNIFIED-APP-041 Windows project on cloud integration version", () => {
     const win = join(
       root,
       "..",
@@ -226,16 +226,16 @@ describe("UNIFIED-APP installable web + single cloud", () => {
     );
     if (!existsSync(win)) {
       // Web-only checkout — document contract still present
-      expect(read("docs/WINDOWS-LEGACY-STATUS.md")).toContain("3.0.1");
+      expect(read("docs/WINDOWS-LEGACY-STATUS.md")).toContain("3.1.0");
       return;
     }
     const src = readFileSync(win, "utf8");
-    expect(src).toMatch(/\$script:Version\s*=\s*'3\.0\.1'/);
+    expect(src).toMatch(/\$script:Version\s*=\s*'3\.1\.0'/);
   });
 
-  it("UNIFIED-APP-042 Windows DataRoot unchanged", () => {
+  it("UNIFIED-APP-042 Windows DataRoot preserved for local modules", () => {
     expect(read("docs/WINDOWS-LEGACY-STATUS.md")).toContain("%LOCALAPPDATA%\\KupaManager");
-    expect(read("docs/WINDOWS-LEGACY-STATUS.md")).toMatch(/do not modify/i);
+    expect(read("docs/WINDOWS-LEGACY-STATUS.md")).toMatch(/do not.*wipe DataRoot|keep for local-only/i);
   });
 
   it("UNIFIED-APP-043 Business data unchanged during tests", () => {

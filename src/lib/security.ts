@@ -42,6 +42,11 @@ export function requireSession(req: NextRequest): Promise<{ username: string } |
 
 export function validateOrigin(req: NextRequest): NextResponse | null {
   if (!isProductionRuntime()) return null;
+  // Windows desktop uses Authorization: Bearer without a browser Origin header.
+  const auth = req.headers.get("authorization") || "";
+  if (/^Bearer\s+\S+/i.test(auth.trim())) {
+    return null;
+  }
   const origin = req.headers.get("origin");
   const host = req.headers.get("host");
   if (!origin || !host) {

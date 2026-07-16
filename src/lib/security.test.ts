@@ -83,3 +83,29 @@ describe("sanitize", () => {
     expect(sanitizeCode("../a!b@c_1")).toBe("abc_1");
   });
 });
+
+describe("validateOrigin", () => {
+  const prevNode = process.env.NODE_ENV;
+  const prevVercel = process.env.VERCEL_ENV;
+  afterEach(() => {
+    process.env.NODE_ENV = prevNode;
+    process.env.VERCEL_ENV = prevVercel;
+  });
+
+  it("allows Bearer desktop requests without Origin in production", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.VERCEL_ENV = "production";
+    const { validateOrigin } = await import("./security");
+    const req = new Request("https://kupa-manager-web.vercel.app/api/preferences", {
+      method: "PUT",
+      headers: {
+        authorization: "Bearer test-token",
+        host: "kupa-manager-web.vercel.app",
+        "content-type": "application/json",
+      },
+    });
+    // NextRequest-compatible shape for validateOrigin (uses headers only).
+    const err = validateOrigin(req as unknown as import("next/server").NextRequest);
+    expect(err).toBeNull();
+  });
+});

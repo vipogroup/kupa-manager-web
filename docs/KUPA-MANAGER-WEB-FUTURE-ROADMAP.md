@@ -9,7 +9,7 @@
 - `localStorage` / Service Worker may cache **non-sensitive shell assets** only
 - Workspace Code is **not** required for operators
 - `deviceId` is audit / conflict metadata only — it does **not** select the workspace
-- PowerShell Windows 3.0.1 is **Legacy** (see `docs/WINDOWS-LEGACY-STATUS.md`) — no automatic Migration/Merge
+- PowerShell Windows **3.1.0** is the primary desktop UI on the Canonical Account Workspace (see `docs/WINDOWS-LEGACY-STATUS.md`) — no automatic Migration/Merge of DataRoot
 
 ## Current project state
 
@@ -38,8 +38,8 @@
 
 ### Important clarification
 
-**Do not enter new business data in local Windows modules.**  
-Web is the operating system of record. Windows remains for legacy/backup only.
+**Enter shared business data via Windows regular tabs or Web/mobile** — all use the same Canonical Account Workspace.  
+Local-only Windows modules (payments, receipt inbox, etc.) remain local until a future cloud port.
 
 Related: `docs/WINDOWS-LEGACY-STATUS.md`, `docs/KUPA-MANAGER-WEB-FINAL-HANDOVER.md`
 
@@ -860,7 +860,7 @@ No automatic Migration from Windows DataRoot.
 ## CURRENT STOP POINT
 
 Unified installable Web app is the primary business UI.  
-Windows 3.0.1 is Legacy. Canonical Account Workspace remains SSoT.
+Windows 3.1.0 is the primary desktop UI on Canonical Account Workspace (SSoT).
 
 ## NEXT RECOMMENDED PHASE
 
