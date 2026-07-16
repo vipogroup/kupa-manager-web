@@ -17,7 +17,11 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/favicon") ||
     pathname === "/login" ||
     pathname.startsWith("/api/auth/login") ||
-    pathname.startsWith("/api/desktop/login")
+    pathname.startsWith("/api/desktop/login") ||
+    // PWA install assets must be public (no session) so browsers can install/register.
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/sw.js" ||
+    pathname.startsWith("/icons/")
   ) {
     return NextResponse.next();
   }

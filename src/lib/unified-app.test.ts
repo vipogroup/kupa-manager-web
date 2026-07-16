@@ -278,5 +278,9 @@ describe("UNIFIED-APP installable web + single cloud", () => {
     expect(manifest.name).toBe("Kupa Manager");
     expect(existsSync(join(root, "public/sw.js"))).toBe(true);
     expect(shell).toContain("InstallAppPanel");
+    const mw = read("src/middleware.ts");
+    expect(mw).toContain("/manifest.webmanifest");
+    expect(mw).toContain("/sw.js");
+    expect(mw).toContain("/icons/");
   });
 });
