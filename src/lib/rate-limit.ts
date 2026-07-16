@@ -8,6 +8,7 @@ export const RATE_IDS = {
   // Reuse configured Vercel Firewall rules (new rule names cause hard 500s).
   desktopLogin: "kupa-login",
   desktopSnapshot: "kupa-sync-get",
+  desktopMutate: "kupa-sync-put",
 } as const;
 
 export async function enforceRateLimit(

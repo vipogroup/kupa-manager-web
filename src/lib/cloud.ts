@@ -183,18 +183,37 @@ async function saveGuardedCore(input: {
 
   try {
     const verify = await input.reread();
-    if (!verify.exists) return { ok: false, kind: "error", message: "readback_missing" };
-    if (verify.snapshot.revision !== nextRevision) {
-      return { ok: false, kind: "error", message: "readback_revision" };
-    }
-    if (!verify.snapshot.updatedAt) {
-      return { ok: false, kind: "error", message: "readback_updatedAt" };
-    }
+    if (!verify.exists) throw new Error("readback_missing");
+    if (verify.snapshot.revision !== nextRevision) throw new Error("readback_revision");
+    if (!verify.snapshot.updatedAt) throw new Error("readback_updatedAt");
     if (dataContentSha256(verify.snapshot.data) !== expectedDataSha) {
-      return { ok: false, kind: "error", message: "readback_sha" };
+      throw new Error("readback_sha");
     }
-  } catch {
-    return { ok: false, kind: "error", message: "readback_failed" };
+  } catch (err) {
+    // Restore previous snapshot when write landed but read-back failed.
+    if (current.exists) {
+      try {
+        await put(input.pathname, current.rawText, {
+          access: "private",
+          contentType: "application/json",
+          addRandomSuffix: false,
+          allowOverwrite: true,
+          token: privateToken(),
+        });
+        const restored = await input.reread();
+        if (
+          !restored.exists ||
+          restored.snapshot.revision !== current.snapshot.revision ||
+          dataContentSha256(restored.snapshot.data) !== dataContentSha256(current.snapshot.data)
+        ) {
+          return { ok: false, kind: "error", message: "rollback_failed" };
+        }
+      } catch {
+        return { ok: false, kind: "error", message: "rollback_failed" };
+      }
+    }
+    const msg = err instanceof Error ? err.message : "readback_failed";
+    return { ok: false, kind: "error", message: msg.startsWith("readback_") ? msg : "readback_failed" };
   }
 
   try {

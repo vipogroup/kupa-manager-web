@@ -56,9 +56,10 @@ export async function POST(req: NextRequest) {
         ok: true,
         token,
         expiresIn: SESSION_MAX_AGE_SEC,
-        tokenType: "Bearer",
-        readOnly: true,
-        accountBound: true,
+      tokenType: "Bearer",
+      readOnly: false,
+      writeEnabled: true,
+      accountBound: true,
       })
     );
   } catch {

@@ -57,6 +57,8 @@ describe("DESKTOP-RO API contracts", () => {
     expect(src).toContain("Bearer");
     expect(src).not.toContain("validateOrigin");
     expect(src).toContain("verifyPassword");
+    expect(src).toContain("writeEnabled: true");
+    expect(src).toContain("readOnly: false");
     expect(src).toMatch(/Method not allowed/);
   });
 
@@ -75,5 +77,6 @@ describe("DESKTOP-RO API contracts", () => {
     const src = readFileSync(join(process.cwd(), "src/lib/rate-limit.ts"), "utf8");
     expect(src).toContain("desktopLogin");
     expect(src).toContain("desktopSnapshot");
+    expect(src).toContain("desktopMutate");
   });
 });
