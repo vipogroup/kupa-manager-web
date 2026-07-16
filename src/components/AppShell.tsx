@@ -12,6 +12,8 @@ import { OrdersPanel } from "@/components/OrdersPanel";
 import { InventoryPanel } from "@/components/InventoryPanel";
 import { DeliveriesPanel } from "@/components/DeliveriesPanel";
 import { CustomizationCenter } from "@/components/CustomizationCenter";
+import { InstallAppPanel } from "@/components/InstallAppPanel";
+import { clearKupaServiceWorkerCaches } from "@/lib/pwa";
 
 const tabs: { id: TabId; label: string }[] = [
   { id: "home", label: "בית" },
@@ -67,20 +69,32 @@ export function AppShell() {
     );
   }
 
+  function selectTab(next: TabId) {
+    if (next !== "inventory") setInventoryFocusProductId(null);
+    if (next !== "deliveries") setDeliveryFocusOrderId(null);
+    setTab(next);
+  }
+
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col bg-[var(--bg)] text-[var(--ink)]">
-      <header className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--panel)]/95 px-4 pb-3 pt-[max(0.85rem,env(safe-area-inset-top))] backdrop-blur">
+    <div
+      className="mx-auto flex min-h-dvh w-full max-w-lg flex-col bg-[var(--bg)] text-[var(--ink)] md:max-w-[var(--kupa-shell-max,72rem)]"
+      data-testid="kupa-app-root"
+    >
+      <header className="sticky top-0 z-20 border-b border-[var(--line)] bg-[var(--panel)]/95 px-4 pb-3 pt-[max(0.85rem,env(safe-area-inset-top))] backdrop-blur md:px-8">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[0.7rem] font-semibold tracking-[0.18em] text-[var(--accent)]">
               KUPA MANAGER
             </p>
-            <h1 className="mt-1 font-[family-name:var(--font-display)] text-2xl font-semibold leading-tight">
+            <h1 className="mt-1 font-[family-name:var(--font-display)] text-2xl font-semibold leading-tight md:text-3xl">
               ניהול הכנסות והוצאות
             </h1>
-            <p className="mt-1 text-sm text-[var(--muted)]">ממשק נייד מאובטח · מסונכרן לחשבון</p>
+            <p className="mt-1 text-sm text-[var(--muted)] md:hidden">ממשק מאובטח · מסונכרן לחשבון</p>
+            <p className="mt-1 hidden text-sm text-[var(--muted)] md:block">
+              ממשק שולחני ונייד · אותו חשבון בכל מכשיר
+            </p>
           </div>
-          <div className="flex shrink-0 flex-col gap-2">
+          <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-start">
             <button
               type="button"
               className="mt-1 rounded-xl border border-[var(--line)] px-3 py-2 text-xs font-semibold text-[var(--muted)]"
@@ -92,9 +106,19 @@ export function AppShell() {
             <button
               type="button"
               className="rounded-xl border border-[var(--line)] px-3 py-2 text-xs font-semibold text-[var(--muted)]"
+              data-testid="open-install-from-header"
+              onClick={() => selectTab("sync")}
+            >
+              התקנת האפליקציה
+            </button>
+            <button
+              type="button"
+              className="rounded-xl border border-[var(--line)] px-3 py-2 text-xs font-semibold text-[var(--muted)]"
               onClick={() => {
-                void fetch("/api/auth/logout", { method: "POST" }).finally(() => {
-                  window.location.href = "/login";
+                void clearKupaServiceWorkerCaches().finally(() => {
+                  void fetch("/api/auth/logout", { method: "POST" }).finally(() => {
+                    window.location.href = "/login";
+                  });
                 });
               }}
             >
@@ -102,11 +126,29 @@ export function AppShell() {
             </button>
           </div>
         </div>
+        <nav className="kupa-desktop-nav mt-3" aria-label="ניווט שולחני" data-testid="desktop-nav">
+          <div className="flex flex-wrap gap-1">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => selectTab(t.id)}
+                className={`rounded-xl px-3 py-2 text-sm font-medium transition ${
+                  tab === t.id
+                    ? "bg-[var(--accent)] text-white"
+                    : "text-[var(--muted)] hover:bg-black/5"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </nav>
       </header>
 
       <CustomizationCenter open={customizationOpen} onClose={() => setCustomizationOpen(false)} />
 
-      <main className="flex-1 px-4 pb-28 pt-4">
+      <main className="kupa-main-pad flex-1 px-4 pb-28 pt-4 md:px-8" data-testid="kupa-main">
         {pendingDirtyLoad ? (
           <div
             className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm"
@@ -220,17 +262,16 @@ export function AppShell() {
         {tab === "sync" && <SyncView />}
       </main>
 
-      <nav className="no-print fixed bottom-0 left-0 right-0 z-20 border-t border-[var(--line)] bg-[var(--panel)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-        <div className="mx-auto grid max-w-lg grid-cols-4 gap-0.5 px-1 py-2">
+      <nav
+        className="kupa-mobile-nav no-print fixed bottom-0 left-0 right-0 z-20 border-t border-[var(--line)] bg-[var(--panel)]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
+        data-testid="mobile-nav"
+      >
+        <div className="mx-auto grid max-w-lg grid-cols-4 gap-0.5 px-1 py-2 md:max-w-none">
           {tabs.map((t) => (
             <button
               key={t.id}
               type="button"
-              onClick={() => {
-                if (t.id !== "inventory") setInventoryFocusProductId(null);
-                if (t.id !== "deliveries") setDeliveryFocusOrderId(null);
-                setTab(t.id);
-              }}
+              onClick={() => selectTab(t.id)}
               className={`rounded-xl px-1 py-2 text-[0.68rem] font-medium transition ${
                 tab === t.id
                   ? "bg-[var(--accent)] text-white"
@@ -518,7 +559,10 @@ function SyncView() {
       <section className="rounded-2xl border border-[var(--line)] bg-[var(--panel)] p-4">
         <h2 className="font-[family-name:var(--font-display)] text-xl font-semibold">סנכרון בין מכשירים</h2>
         <p className="mt-2 text-sm leading-relaxed text-[var(--muted)]" data-testid="acct-ws-account-bound-msg">
-          הנתונים מסונכרנים לחשבון המחובר. אין צורך בקוד סביבת עבודה.
+          הנתונים נשמרים בחשבון שלך ומופיעים בכל מכשיר שבו התחברת.
+        </p>
+        <p className="mt-1 text-xs text-[var(--muted)]">
+          אין צורך בקוד סביבת עבודה. המאגר הוא חשבון הענן הקנוני — לא לפי מכשיר או דפדפן.
         </p>
 
         <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
@@ -635,6 +679,8 @@ function SyncView() {
           <p className="mt-1 text-xs font-semibold text-amber-800">יש שינויים שלא נשמרו</p>
         ) : null}
       </section>
+
+      <InstallAppPanel />
     </div>
   );
 }

@@ -1,12 +1,23 @@
 # Kupa Manager Web — Future Development Roadmap
 
+## Architectural decision (binding)
+
+**Kupa Manager Web is the single source of truth** for business data.
+
+- Canonical storage: authenticated **Account Workspace** on **Vercel Private Blob**
+- Same account → same IDs, counters, revision, customers/products/orders/inventory/deliveries
+- `localStorage` / Service Worker may cache **non-sensitive shell assets** only
+- Workspace Code is **not** required for operators
+- `deviceId` is audit / conflict metadata only — it does **not** select the workspace
+- PowerShell Windows 3.0.1 is **Legacy** (see `docs/WINDOWS-LEGACY-STATUS.md`) — no automatic Migration/Merge
+
 ## Current project state
 
 **Project:** kupa-manager-web  
 **Production URL:** https://kupa-manager-web.vercel.app  
 **GitHub:** https://github.com/vipogroup/kupa-manager-web  
 **Branch:** master  
-**Current verified Git/Vercel SHA:** `5970af9ba296a7040d9db46ec42ff4bd6c250034`
+**Installable Web App:** Manifest + static Service Worker + desktop/mobile layouts
 
 ### Current completed modules
 
@@ -22,14 +33,15 @@
 - Manual cloud save/load/refresh
 - Conflict protection (revision / 409)
 - Private Blob storage
+- Account-bound sync (desktop + mobile + PWA)
+- Installable Web App (PWA) guidance
 
 ### Important clarification
 
-**Windows and Web are still two separate systems.**  
-There is **no** automatic sync between them.  
-Do not treat the Web app as a full clone of the Windows application.
+**Do not enter new business data in local Windows modules.**  
+Web is the operating system of record. Windows remains for legacy/backup only.
 
-Related handover document: `docs/KUPA-MANAGER-WEB-FINAL-HANDOVER.md`
+Related: `docs/WINDOWS-LEGACY-STATUS.md`, `docs/KUPA-MANAGER-WEB-FINAL-HANDOVER.md`
 
 ---
 
@@ -742,42 +754,118 @@ All statuses below: **NOT STARTED**
 
 ---
 
+## Windows-only modules — port plan (do not build now)
+
+Each module below is **NOT STARTED** on Web. Port only after an explicit phase approval.  
+No automatic Migration from Windows DataRoot.
+
+### W1 — Order Payments (advanced)
+
+| Field | Value |
+|--------|--------|
+| Status | NOT STARTED |
+| Dependencies | Orders; Multi-user / Audit recommended |
+| Data model | Payment allocations, balance, void rules linked to order IDs |
+| Migration | Optional import from Windows `orderPayments` — separate approved plan |
+| Tests | Allocation math, void rollback, conflict 409, no silent overwrite |
+| Rollback | Disable Web payments UI; keep Blob revision backups |
+
+### W2 — Receipt Inbox + OCR + receipt files
+
+| Field | Value |
+|--------|--------|
+| Status | NOT STARTED |
+| Dependencies | Private Blob binary policy; Income/Expense link |
+| Data model | Receipt drafts, file refs (private), OCR fields, provider gates |
+| Migration | Copy files only with verified inventory — never Public Blob |
+| Tests | Upload limits, private access, OCR failure paths, logout clears UI cache |
+| Rollback | Feature flag off; keep existing money records |
+
+### W3 — Product categories
+
+| Field | Value |
+|--------|--------|
+| Status | NOT STARTED |
+| Dependencies | Products |
+| Data model | Category catalog + product.categoryId; deactivate/in-use rules |
+| Migration | Map Windows `productCategories` → Web categories |
+| Tests | Uniqueness, in-use delete blocked, product filter |
+| Rollback | Hide category UI; products keep unknown fields |
+
+### W4 — Delivery calendar (local Windows calendar UX)
+
+| Field | Value |
+|--------|--------|
+| Status | NOT STARTED |
+| Dependencies | Deliveries (Web already has deliveries by area) |
+| Data model | Calendar views over existing delivery entities — no second store |
+| Migration | None if IDs already in cloud; UX only |
+| Tests | Day navigation, area filters, no inventory side-effects |
+| Rollback | Keep list/label UI |
+
+### W5 — Reports + CSV tools
+
+| Field | Value |
+|--------|--------|
+| Status | NOT STARTED |
+| Dependencies | Stable entities; optional Audit |
+| Data model | Read-only aggregations; export jobs ephemeral |
+| Migration | N/A |
+| Tests | Totals match store; CSV columns; no PII in logs |
+| Rollback | Remove export routes |
+
+### W6 — Inventory locations + reservations
+
+| Field | Value |
+|--------|--------|
+| Status | NOT STARTED |
+| Dependencies | Inventory movements; conflict design |
+| Data model | Locations, reservations, available qty guards |
+| Migration | Optional from Windows inventory locations — approved plan only |
+| Tests | Negative stock blocked; reservation atomicity; 409 |
+| Rollback | Feature flag; keep simple stockQuantity |
+
+### W7 — Advanced UI customization (Windows Global Customization Center parity)
+
+| Field | Value |
+|--------|--------|
+| Status | NOT STARTED |
+| Dependencies | Existing Mobile customization center |
+| Data model | Prefs already account-bound via `/api/preferences` |
+| Migration | Optional prefs merge — never business entities |
+| Tests | Required locked elements; no hide of conflict/auth |
+| Rollback | Reset prefs to defaults |
+
+---
+
 ## Suggested sequencing summary
 
 1. Multi-user roles  
 2. Audit log  
 3. Real-time sync (only after conflict design)  
-4. Windows/Web shared backend or migration  
-5. Advanced inventory  
-6. Automatic stock reduction at Dispatch  
-7. Advanced payments  
-8. Delivery statuses  
-9. Drivers/vehicles/routes (no GPS)  
-10. Proof of Delivery  
-11. Delivery documents  
-12. Advanced labels  
-13. Returns/exchanges  
-14. Refunds/credit notes  
-15. Reports  
-16. Dashboard  
-17. Receipt Inbox / OCR  
-18. AI (opt-in)  
-19. Native mobile  
-20. Notifications  
-21. Multi-business  
-22. Advanced backup/restore  
+4. Reports / CSV (W5)  
+5. Product categories (W3)  
+6. Advanced inventory locations/reservations (W6)  
+7. Payments (W1)  
+8. Receipt Inbox / OCR (W2)  
+9. Delivery calendar UX (W4)  
+10. Advanced customization parity (W7)  
+11. Delivery statuses / drivers / POD (existing later phases)  
+12. Native wrappers only if PWA is insufficient  
+13. Multi-business  
+14. Advanced backup/restore  
 
 ---
 
 ## CURRENT STOP POINT
 
-כל 8 משימות ה-Production הראשונות הושלמו.
-
-המערכת בפרודקשן עם מודולים שפורטו למעלה, Private Blob, סנכרון ידני, והגנה מפני Conflict בסיסית.
+Unified installable Web app is the primary business UI.  
+Windows 3.0.1 is Legacy. Canonical Account Workspace remains SSoT.
 
 ## NEXT RECOMMENDED PHASE
 
 **MULTI-USER ROLES AND AUDIT LOG FOUNDATION**  
 (Phases 1–2)
 
-**אין להתחיל שלב זה ללא אישור מפורש מהמשתמש.**
+**אין להתחיל שלב זה ללא אישור מפורש מהמשתמש.**  
+**אין להתחיל העברת מודולי Windows (W1–W7) ללא אישור מפורש.**

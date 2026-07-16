@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Assistant, Rubik } from "next/font/google";
+import { PwaRegister } from "@/components/PwaRegister";
 import "./globals.css";
 
 const body = Assistant({
@@ -15,12 +16,24 @@ const display = Rubik({
 });
 
 export const metadata: Metadata = {
-  title: "Kupa Manager — ניהול הכנסות והוצאות",
-  description: "ממשק נייד לניהול הכנסות, הוצאות, לקוחות ומוצרים",
+  applicationName: "Kupa Manager",
+  title: "Kupa Manager",
+  description: "ניהול הכנסות, הוצאות, לקוחות ומוצרים — חשבון אחד בכל מכשיר",
+  manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     title: "Kupa Manager",
     statusBarStyle: "default",
+  },
+  icons: {
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
   },
 };
 
@@ -38,7 +51,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="he" dir="rtl">
-      <body className={`${body.variable} ${display.variable} antialiased`}>{children}</body>
+      <body className={`${body.variable} ${display.variable} antialiased kupa-app-shell`}>
+        {children}
+        <PwaRegister />
+      </body>
     </html>
   );
 }

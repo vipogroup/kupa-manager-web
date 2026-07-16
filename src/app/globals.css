@@ -26,6 +26,36 @@ body {
   color: var(--ink);
   font-family: var(--font-body), "Segoe UI", Tahoma, sans-serif;
   -webkit-tap-highlight-color: transparent;
+  overflow-x: hidden;
+}
+
+/* Desktop / tablet: use screen width; mobile keeps compact column via AppShell max-w. */
+@media (min-width: 768px) {
+  .kupa-app-shell {
+    --kupa-shell-max: 72rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .kupa-app-shell {
+    --kupa-shell-max: 80rem;
+  }
+}
+
+.kupa-desktop-nav {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .kupa-mobile-nav {
+    display: none !important;
+  }
+  .kupa-desktop-nav {
+    display: block;
+  }
+  .kupa-main-pad {
+    padding-bottom: 2rem !important;
+  }
 }
 
 * {
