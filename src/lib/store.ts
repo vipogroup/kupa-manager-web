@@ -41,6 +41,7 @@ import {
   type DeliveryCreateInput,
   type DeliveryUpdateInput,
 } from "./deliveries";
+import { CLOUD_CONTRACT_VERSION, collectUnknownTopLevel, isCloudAppDataKnownKey } from "./cloud-contract";
 
 export type SyncUiStatus =
   | "clean"
@@ -142,17 +143,58 @@ function withDirty<T extends Partial<Store>>(
   return { ...patch, dirty: true, pendingSync: true, syncStatus: "dirty" };
 }
 
+const STORE_META_KEYS = new Set([
+  "workspaceCode",
+  "dirty",
+  "pendingSync",
+  "cloudHydrated",
+  "syncStatus",
+  "cloudRevision",
+  "cloudUpdatedAt",
+  "lastError",
+]);
+
 function defaultCounters(c?: AppData["counters"]) {
   return {
     nextOrderNumber: c?.nextOrderNumber ?? 0,
     nextInventoryMovementNumber: c?.nextInventoryMovementNumber ?? 0,
     nextDeliveryNumber: c?.nextDeliveryNumber ?? 0,
+    nextDriverNumber: c?.nextDriverNumber ?? 0,
+    nextVehicleNumber: c?.nextVehicleNumber ?? 0,
+    nextDeliveryRouteNumber: c?.nextDeliveryRouteNumber ?? 0,
+    nextRouteStopNumber: c?.nextRouteStopNumber ?? 0,
   };
 }
 
-function toAppData(s: AppData): AppData {
+function toAppData(s: AppData & Record<string, unknown>): AppData {
+  const known = new Set<string>([
+    ...STORE_META_KEYS,
+    "version",
+    "cloudContractVersion",
+    "desktopSchemaVersion",
+    "incomes",
+    "expenses",
+    "customers",
+    "products",
+    "orders",
+    "inventoryMovements",
+    "deliveries",
+    "drivers",
+    "vehicles",
+    "deliveryRoutes",
+    "updatedAt",
+    "customerCounter",
+    "productCounter",
+    "counters",
+  ]);
+  const unknown = collectUnknownTopLevel(s as Record<string, unknown>, known);
   return {
+    ...unknown,
     version: 1,
+    cloudContractVersion:
+      typeof s.cloudContractVersion === "number" ? s.cloudContractVersion : CLOUD_CONTRACT_VERSION,
+    desktopSchemaVersion:
+      typeof s.desktopSchemaVersion === "number" ? s.desktopSchemaVersion : undefined,
     incomes: s.incomes,
     expenses: s.expenses,
     customers: s.customers,
@@ -160,6 +202,9 @@ function toAppData(s: AppData): AppData {
     orders: s.orders || [],
     inventoryMovements: s.inventoryMovements || [],
     deliveries: s.deliveries || [],
+    drivers: s.drivers || [],
+    vehicles: s.vehicles || [],
+    deliveryRoutes: s.deliveryRoutes || [],
     updatedAt: s.updatedAt,
     customerCounter: s.customerCounter ?? 0,
     productCounter: s.productCounter ?? 0,
@@ -400,8 +445,53 @@ export const useKupaStore = create<Store>()(
       },
       replaceAll: (data) => {
         const normalized = normalizeAppDataEntities(data);
+        const knownUi = new Set([
+          "workspaceCode",
+          "dirty",
+          "pendingSync",
+          "cloudHydrated",
+          "syncStatus",
+          "cloudRevision",
+          "cloudUpdatedAt",
+          "lastError",
+        ]);
+        const extras: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(normalized as Record<string, unknown>)) {
+          if (knownUi.has(k)) continue;
+          if (typeof v === "function") continue;
+          if (isCloudAppDataKnownKey(k) || k === "drivers" || k === "vehicles" || k === "deliveryRoutes") {
+            continue;
+          }
+          // Preserve unknown top-level from cloud payload
+          if (
+            ![
+              "version",
+              "cloudContractVersion",
+              "desktopSchemaVersion",
+              "incomes",
+              "expenses",
+              "customers",
+              "products",
+              "orders",
+              "inventoryMovements",
+              "deliveries",
+              "drivers",
+              "vehicles",
+              "deliveryRoutes",
+              "updatedAt",
+              "customerCounter",
+              "productCounter",
+              "counters",
+            ].includes(k)
+          ) {
+            extras[k] = v;
+          }
+        }
         set({
+          ...extras,
           version: 1,
+          cloudContractVersion: normalized.cloudContractVersion ?? CLOUD_CONTRACT_VERSION,
+          desktopSchemaVersion: normalized.desktopSchemaVersion,
           incomes: normalized.incomes,
           expenses: normalized.expenses,
           customers: normalized.customers,
@@ -409,6 +499,9 @@ export const useKupaStore = create<Store>()(
           orders: normalized.orders || [],
           inventoryMovements: normalized.inventoryMovements || [],
           deliveries: normalized.deliveries || [],
+          drivers: normalized.drivers || [],
+          vehicles: normalized.vehicles || [],
+          deliveryRoutes: normalized.deliveryRoutes || [],
           updatedAt: normalized.updatedAt,
           customerCounter: normalized.customerCounter ?? 0,
           productCounter: normalized.productCounter ?? 0,
@@ -419,44 +512,41 @@ export const useKupaStore = create<Store>()(
     }),
     {
       name: "kupa-manager-web-v1",
-      partialize: (state) => ({
-        version: state.version,
-        incomes: state.incomes,
-        expenses: state.expenses,
-        customers: state.customers,
-        products: state.products,
-        orders: state.orders || [],
-        inventoryMovements: state.inventoryMovements || [],
-        deliveries: state.deliveries || [],
-        updatedAt: state.updatedAt,
-        customerCounter: state.customerCounter ?? 0,
-        productCounter: state.productCounter ?? 0,
-        counters: defaultCounters(state.counters),
-        dirty: state.dirty,
-        pendingSync: state.pendingSync,
-        syncStatus:
-          state.syncStatus === "saving" || state.syncStatus === "loading"
-            ? state.dirty
-              ? "dirty"
-              : "clean"
-            : state.syncStatus,
-        cloudRevision: state.cloudRevision,
-        cloudUpdatedAt: state.cloudUpdatedAt,
-      }),
+      partialize: (state) => {
+        const app = toAppData(state);
+        return {
+          ...app,
+          dirty: state.dirty,
+          pendingSync: state.pendingSync,
+          syncStatus:
+            state.syncStatus === "saving" || state.syncStatus === "loading"
+              ? state.dirty
+                ? "dirty"
+                : "clean"
+              : state.syncStatus,
+          cloudRevision: state.cloudRevision,
+          cloudUpdatedAt: state.cloudUpdatedAt,
+        };
+      },
       onRehydrateStorage: () => (state) => {
         if (!state) return;
         // Ignore legacy browser workspace codes for cloud path selection.
         state.hydrateWorkspaceCode("");
         state.cloudHydrated = false;
-        const normalized = normalizeAppDataEntities(toAppData(state));
+        const normalized = normalizeAppDataEntities(toAppData(state as AppData & Record<string, unknown>));
+        Object.assign(state, toAppData(normalized as AppData & Record<string, unknown>));
         state.customers = normalized.customers;
         state.products = normalized.products;
         state.orders = normalized.orders || [];
         state.inventoryMovements = normalized.inventoryMovements || [];
         state.deliveries = normalized.deliveries || [];
+        state.drivers = normalized.drivers || [];
+        state.vehicles = normalized.vehicles || [];
+        state.deliveryRoutes = normalized.deliveryRoutes || [];
         state.customerCounter = normalized.customerCounter;
         state.productCounter = normalized.productCounter;
         state.counters = defaultCounters(normalized.counters);
+        state.cloudContractVersion = normalized.cloudContractVersion ?? CLOUD_CONTRACT_VERSION;
         // Legacy workspace-code key is cleared only after successful cloud sync (sync-client).
       },
     }

@@ -38,6 +38,19 @@ import {
   type MoneyInput,
 } from "./money-records";
 import { validateAppData } from "./validate-data";
+import {
+  allocateDeliveryRoute,
+  allocateDriver,
+  allocateVehicle,
+  cancelDeliveryRouteInData,
+  reorderRouteStopsInData,
+  setDriverActiveInData,
+  setVehicleActiveInData,
+  updateDeliveryRouteInData,
+  updateDriverInData,
+  updateVehicleInData,
+} from "./phase9a-fleet";
+import { CLOUD_CONTRACT_VERSION } from "./cloud-contract";
 
 /** Explicit allowlist — never accept arbitrary AppData patches. */
 export const DESKTOP_MUTATE_ACTIONS = [
@@ -68,6 +81,18 @@ export const DESKTOP_MUTATE_ACTIONS = [
   "createExpense",
   "updateExpense",
   "deleteExpense",
+  "createDriver",
+  "updateDriver",
+  "deactivateDriver",
+  "reactivateDriver",
+  "createVehicle",
+  "updateVehicle",
+  "deactivateVehicle",
+  "reactivateVehicle",
+  "createDeliveryRoute",
+  "updateDeliveryRoute",
+  "cancelDeliveryRoute",
+  "reorderRouteStops",
 ] as const;
 
 export type DesktopMutateAction = (typeof DESKTOP_MUTATE_ACTIONS)[number];
@@ -363,6 +388,86 @@ export function applyDesktopMutation(
       const r = removeExpenseInData(data, id);
       if ("error" in r) return { ok: false, error: r.error };
       return { ok: true, data: r.data, record: { id }, recordKind: "expense" };
+    }
+    case "createDriver": {
+      const r = allocateDriver(data, p);
+      if ("error" in r) return { ok: false, error: r.error };
+      return {
+        ok: true,
+        data: { ...r.data, cloudContractVersion: CLOUD_CONTRACT_VERSION },
+        record: r.driver,
+        recordKind: "driver",
+      };
+    }
+    case "updateDriver": {
+      const id = requireId(p);
+      if (!id) return { ok: false, error: "מזהה נהג חובה" };
+      const patch = { ...p };
+      delete patch.id;
+      const r = updateDriverInData(data, id, patch);
+      if ("error" in r) return { ok: false, error: r.error };
+      return { ok: true, data: r.data, record: r.driver, recordKind: "driver" };
+    }
+    case "deactivateDriver":
+    case "reactivateDriver": {
+      const id = requireId(p);
+      if (!id) return { ok: false, error: "מזהה נהג חובה" };
+      const r = setDriverActiveInData(data, id, actionType === "reactivateDriver");
+      if ("error" in r) return { ok: false, error: r.error };
+      return { ok: true, data: r.data, record: r.driver, recordKind: "driver" };
+    }
+    case "createVehicle": {
+      const r = allocateVehicle(data, p);
+      if ("error" in r) return { ok: false, error: r.error };
+      return { ok: true, data: r.data, record: r.vehicle, recordKind: "vehicle" };
+    }
+    case "updateVehicle": {
+      const id = requireId(p);
+      if (!id) return { ok: false, error: "מזהה רכב חובה" };
+      const patch = { ...p };
+      delete patch.id;
+      const r = updateVehicleInData(data, id, patch);
+      if ("error" in r) return { ok: false, error: r.error };
+      return { ok: true, data: r.data, record: r.vehicle, recordKind: "vehicle" };
+    }
+    case "deactivateVehicle":
+    case "reactivateVehicle": {
+      const id = requireId(p);
+      if (!id) return { ok: false, error: "מזהה רכב חובה" };
+      const r = setVehicleActiveInData(data, id, actionType === "reactivateVehicle");
+      if ("error" in r) return { ok: false, error: r.error };
+      return { ok: true, data: r.data, record: r.vehicle, recordKind: "vehicle" };
+    }
+    case "createDeliveryRoute": {
+      const r = allocateDeliveryRoute(data, p);
+      if ("error" in r) return { ok: false, error: r.error };
+      return { ok: true, data: r.data, record: r.route, recordKind: "deliveryRoute" };
+    }
+    case "updateDeliveryRoute": {
+      const id = requireId(p);
+      if (!id) return { ok: false, error: "מזהה מסלול חובה" };
+      const patch = { ...p };
+      delete patch.id;
+      const r = updateDeliveryRouteInData(data, id, patch);
+      if ("error" in r) return { ok: false, error: r.error };
+      return { ok: true, data: r.data, record: r.route, recordKind: "deliveryRoute" };
+    }
+    case "cancelDeliveryRoute": {
+      const id = requireId(p);
+      if (!id) return { ok: false, error: "מזהה מסלול חובה" };
+      const r = cancelDeliveryRouteInData(data, id, String(p.reason || ""));
+      if ("error" in r) return { ok: false, error: r.error };
+      return { ok: true, data: r.data, record: r.route, recordKind: "deliveryRoute" };
+    }
+    case "reorderRouteStops": {
+      const id = requireId(p);
+      if (!id) return { ok: false, error: "מזהה מסלול חובה" };
+      const ordered = Array.isArray(p.orderedStopIds)
+        ? p.orderedStopIds.map((x) => String(x))
+        : [];
+      const r = reorderRouteStopsInData(data, id, ordered);
+      if ("error" in r) return { ok: false, error: r.error };
+      return { ok: true, data: r.data, record: r.route, recordKind: "deliveryRoute" };
     }
     default:
       return { ok: false, error: "פעולה אינה נתמכת" };

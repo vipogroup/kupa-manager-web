@@ -19,10 +19,13 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
   }
   if (!isString(o.updatedAt)) return { ok: false };
 
-  // Legacy workspaces may omit orders / inventoryMovements / deliveries — treat as []
+  // Legacy workspaces may omit newer collections — treat as []
   if (o.orders !== undefined && !Array.isArray(o.orders)) return { ok: false };
   if (o.inventoryMovements !== undefined && !Array.isArray(o.inventoryMovements)) return { ok: false };
   if (o.deliveries !== undefined && !Array.isArray(o.deliveries)) return { ok: false };
+  if (o.drivers !== undefined && !Array.isArray(o.drivers)) return { ok: false };
+  if (o.vehicles !== undefined && !Array.isArray(o.vehicles)) return { ok: false };
+  if (o.deliveryRoutes !== undefined && !Array.isArray(o.deliveryRoutes)) return { ok: false };
 
   for (const row of o.incomes) {
     if (!row || typeof row !== "object") return { ok: false };
@@ -76,6 +79,8 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
 
   const known = new Set([
     "version",
+    "cloudContractVersion",
+    "desktopSchemaVersion",
     "incomes",
     "expenses",
     "customers",
@@ -83,6 +88,9 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
     "orders",
     "inventoryMovements",
     "deliveries",
+    "drivers",
+    "vehicles",
+    "deliveryRoutes",
     "updatedAt",
     "customerCounter",
     "productCounter",
@@ -99,20 +107,43 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
   const products = o.products.map((p, i) => normalizeProduct(p, i));
   const orders = ordersRaw.map((ord, i) => normalizeOrder(ord, i));
 
-  let counters = { nextOrderNumber: 0, nextInventoryMovementNumber: 0, nextDeliveryNumber: 0 };
+  const driversRaw = Array.isArray(o.drivers) ? o.drivers : [];
+  const vehiclesRaw = Array.isArray(o.vehicles) ? o.vehicles : [];
+  const routesRaw = Array.isArray(o.deliveryRoutes) ? o.deliveryRoutes : [];
+  for (const row of driversRaw) {
+    if (!row || typeof row !== "object") return { ok: false };
+    if (!isString((row as Record<string, unknown>).id)) return { ok: false };
+  }
+  for (const row of vehiclesRaw) {
+    if (!row || typeof row !== "object") return { ok: false };
+    if (!isString((row as Record<string, unknown>).id)) return { ok: false };
+  }
+  for (const row of routesRaw) {
+    if (!row || typeof row !== "object") return { ok: false };
+    if (!isString((row as Record<string, unknown>).id)) return { ok: false };
+  }
+
+  let counters = {
+    nextOrderNumber: 0,
+    nextInventoryMovementNumber: 0,
+    nextDeliveryNumber: 0,
+    nextDriverNumber: 0,
+    nextVehicleNumber: 0,
+    nextDeliveryRouteNumber: 0,
+    nextRouteStopNumber: 0,
+  };
   if (o.counters && typeof o.counters === "object" && !Array.isArray(o.counters)) {
     const c = o.counters as Record<string, unknown>;
+    const num = (k: string) =>
+      typeof c[k] === "number" && Number.isFinite(c[k] as number) ? (c[k] as number) : 0;
     counters = {
-      nextOrderNumber:
-        typeof c.nextOrderNumber === "number" && Number.isFinite(c.nextOrderNumber) ? c.nextOrderNumber : 0,
-      nextInventoryMovementNumber:
-        typeof c.nextInventoryMovementNumber === "number" && Number.isFinite(c.nextInventoryMovementNumber)
-          ? c.nextInventoryMovementNumber
-          : 0,
-      nextDeliveryNumber:
-        typeof c.nextDeliveryNumber === "number" && Number.isFinite(c.nextDeliveryNumber)
-          ? c.nextDeliveryNumber
-          : 0,
+      nextOrderNumber: num("nextOrderNumber"),
+      nextInventoryMovementNumber: num("nextInventoryMovementNumber"),
+      nextDeliveryNumber: num("nextDeliveryNumber"),
+      nextDriverNumber: num("nextDriverNumber"),
+      nextVehicleNumber: num("nextVehicleNumber"),
+      nextDeliveryRouteNumber: num("nextDeliveryRouteNumber"),
+      nextRouteStopNumber: num("nextRouteStopNumber"),
     };
   }
 
@@ -120,6 +151,14 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
     ...emptyData(),
     ...rest,
     version: 1,
+    cloudContractVersion:
+      typeof o.cloudContractVersion === "number" && Number.isFinite(o.cloudContractVersion)
+        ? o.cloudContractVersion
+        : emptyData().cloudContractVersion,
+    desktopSchemaVersion:
+      typeof o.desktopSchemaVersion === "number" && Number.isFinite(o.desktopSchemaVersion)
+        ? o.desktopSchemaVersion
+        : undefined,
     incomes: o.incomes as AppData["incomes"],
     expenses: o.expenses as AppData["expenses"],
     customers,
@@ -127,6 +166,9 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
     orders,
     inventoryMovements: movementsRaw as AppData["inventoryMovements"],
     deliveries: deliveriesRaw as AppData["deliveries"],
+    drivers: driversRaw as AppData["drivers"],
+    vehicles: vehiclesRaw as AppData["vehicles"],
+    deliveryRoutes: routesRaw as AppData["deliveryRoutes"],
     updatedAt: o.updatedAt as string,
     customerCounter: typeof o.customerCounter === "number" && Number.isFinite(o.customerCounter) ? o.customerCounter : undefined,
     productCounter: typeof o.productCounter === "number" && Number.isFinite(o.productCounter) ? o.productCounter : undefined,

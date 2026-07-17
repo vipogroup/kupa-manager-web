@@ -10,6 +10,7 @@ import {
 import { normalizeOrdersInData } from "./orders";
 import { attachOpeningMovement, normalizeInventoryInData } from "./inventory";
 import { normalizeDeliveriesInData } from "./deliveries";
+import { normalizeFleetInData } from "./phase9a-fleet";
 
 export const CUSTOMER_TYPES: CustomerType[] = ["private", "business"];
 export const DELIVERY_AREAS: DeliveryArea[] = ["unassigned", "center", "north", "south"];
@@ -228,15 +229,24 @@ export function normalizeAppDataEntities(data: AppData): AppData {
     orders: Array.isArray(data.orders) ? data.orders : [],
     inventoryMovements: Array.isArray(data.inventoryMovements) ? data.inventoryMovements : [],
     deliveries: Array.isArray(data.deliveries) ? data.deliveries : [],
+    drivers: Array.isArray(data.drivers) ? data.drivers : [],
+    vehicles: Array.isArray(data.vehicles) ? data.vehicles : [],
+    deliveryRoutes: Array.isArray(data.deliveryRoutes) ? data.deliveryRoutes : [],
     customerCounter: counters.customerCounter,
     productCounter: counters.productCounter,
-    counters: data.counters || {
-      nextOrderNumber: 0,
-      nextInventoryMovementNumber: 0,
-      nextDeliveryNumber: 0,
+    counters: {
+      nextOrderNumber: data.counters?.nextOrderNumber ?? 0,
+      nextInventoryMovementNumber: data.counters?.nextInventoryMovementNumber ?? 0,
+      nextDeliveryNumber: data.counters?.nextDeliveryNumber ?? 0,
+      nextDriverNumber: data.counters?.nextDriverNumber ?? 0,
+      nextVehicleNumber: data.counters?.nextVehicleNumber ?? 0,
+      nextDeliveryRouteNumber: data.counters?.nextDeliveryRouteNumber ?? 0,
+      nextRouteStopNumber: data.counters?.nextRouteStopNumber ?? 0,
     },
   };
-  return normalizeDeliveriesInData(normalizeInventoryInData(normalizeOrdersInData(withEntities)));
+  return normalizeFleetInData(
+    normalizeDeliveriesInData(normalizeInventoryInData(normalizeOrdersInData(withEntities)))
+  );
 }
 
 export type CustomerInput = Omit<Customer, "id" | "customerNumber" | "createdAt" | "updatedAt"> & {

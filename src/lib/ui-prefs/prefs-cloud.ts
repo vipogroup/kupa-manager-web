@@ -23,13 +23,21 @@ function normalizePrefs(raw: unknown): MobileUiPreferences {
   if (!raw || typeof raw !== "object") return defaultMobilePreferences();
   const o = raw as Record<string, unknown>;
   const preset =
-    o.preset === "basic" || o.preset === "business" || o.preset === "full" || o.preset === "custom"
+    o.preset === "basic" ||
+    o.preset === "business" ||
+    o.preset === "full" ||
+    o.preset === "readOnly" ||
+    o.preset === "custom"
       ? o.preset
       : "business";
   const hidden = Array.isArray(o.hiddenElementIds)
     ? sanitizeHiddenIds(o.hiddenElementIds.filter((x): x is string => typeof x === "string"))
     : [];
-  return { version: 1, preset, hiddenElementIds: hidden };
+  const modulePermissions =
+    o.modulePermissions && typeof o.modulePermissions === "object" && !Array.isArray(o.modulePermissions)
+      ? (o.modulePermissions as MobileUiPreferences["modulePermissions"])
+      : undefined;
+  return { version: 1, preset, hiddenElementIds: hidden, modulePermissions };
 }
 
 export type PrefsReadResult =

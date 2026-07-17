@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyPassword } from "@/lib/password";
 import {
   SESSION_COOKIE,
   createSessionToken,
@@ -14,6 +13,7 @@ import {
   validateOrigin,
 } from "@/lib/security";
 import { RATE_IDS, enforceRateLimit } from "@/lib/rate-limit";
+import { authenticateUser } from "@/lib/auth-accounts";
 
 export const runtime = "nodejs";
 
@@ -38,23 +38,22 @@ export async function POST(req: NextRequest) {
     return jsonError(400, "שם משתמש או סיסמה אינם נכונים");
   }
 
-  const expectedUser = process.env.KUPA_ADMIN_USERNAME || "";
-  const expectedHash = process.env.KUPA_ADMIN_PASSWORD_HASH || "";
-  if (!expectedUser || !expectedHash) {
-    return jsonError(503, "התחברות אינה מוגדרת");
-  }
-
-  // Always run password verify to reduce user-enumeration timing differences.
-  const dummyHash =
-    "scrypt$16384$8$1$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-  const passOk = verifyPassword(password, expectedHash || dummyHash);
-  const userOk = username === expectedUser;
-  if (!userOk || !passOk) {
+  const auth = authenticateUser(username, password);
+  if (!auth.ok) {
+    if (!process.env.KUPA_ADMIN_USERNAME && !process.env.KUPA_TEST_ADMIN_USERNAME) {
+      return jsonError(503, "התחברות אינה מוגדרת");
+    }
     return jsonError(401, "שם משתמש או סיסמה אינם נכונים");
   }
 
-  const token = createSessionToken(expectedUser);
-  const res = securityHeaders(NextResponse.json({ ok: true }));
+  const token = createSessionToken(auth.account.username);
+  const res = securityHeaders(
+    NextResponse.json({
+      ok: true,
+      accountId: auth.account.accountId,
+      isTestWorkspace: auth.account.isTest,
+    })
+  );
   res.cookies.set(SESSION_COOKIE, await token, sessionCookieOptions(isProductionRuntime()));
   return res;
 }

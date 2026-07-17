@@ -87,7 +87,11 @@ export async function PUT(req: NextRequest) {
   if (!raw || typeof raw !== "object") return jsonError(400, "העדפות לא תקינות");
 
   const preset =
-    raw.preset === "basic" || raw.preset === "business" || raw.preset === "full" || raw.preset === "custom"
+    raw.preset === "basic" ||
+    raw.preset === "business" ||
+    raw.preset === "full" ||
+    raw.preset === "readOnly" ||
+    raw.preset === "custom"
       ? raw.preset
       : null;
   if (!preset) return jsonError(400, "preset לא תקין");
@@ -100,6 +104,10 @@ export async function PUT(req: NextRequest) {
         ? raw.hiddenElementIds.filter((x): x is string => typeof x === "string")
         : []
     ),
+    modulePermissions:
+      raw.modulePermissions && typeof raw.modulePermissions === "object" && !Array.isArray(raw.modulePermissions)
+        ? (raw.modulePermissions as MobileUiPreferences["modulePermissions"])
+        : undefined,
   };
 
   try {

@@ -56,6 +56,12 @@ const BUSINESS_HIDE_SUFFIXES = [
 
 export function hiddenIdsForPreset(preset: MobilePresetId): string[] {
   if (preset === "full" || preset === "custom") return [];
+  if (preset === "readOnly") {
+    // Hide mutation action surfaces; keep lists/details visible.
+    return MOBILE_REGISTRY.filter(
+      (e) => !e.required && (e.surface === "form" || e.id.includes(".create") || e.id.includes(".actions."))
+    ).map((e) => e.id);
+  }
   const optional = MOBILE_REGISTRY.filter((e) => !e.required);
   if (preset === "basic") {
     return optional

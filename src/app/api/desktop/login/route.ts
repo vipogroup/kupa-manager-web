@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyPassword } from "@/lib/password";
 import { SESSION_MAX_AGE_SEC, createSessionToken } from "@/lib/session";
 import {
   assertJsonContentType,
@@ -8,6 +7,9 @@ import {
   securityHeaders,
 } from "@/lib/security";
 import { RATE_IDS, enforceRateLimit } from "@/lib/rate-limit";
+import { authenticateUser } from "@/lib/auth-accounts";
+import { resolveAccountIdFromSession, shortFingerprint } from "@/lib/account-workspace";
+import { accountWorkspacePath } from "@/lib/workspace-path";
 
 export const runtime = "nodejs";
 
@@ -36,30 +38,39 @@ export async function POST(req: NextRequest) {
       return jsonError(400, "שם משתמש או סיסמה אינם נכונים");
     }
 
-    const expectedUser = process.env.KUPA_ADMIN_USERNAME || "";
-    const expectedHash = process.env.KUPA_ADMIN_PASSWORD_HASH || "";
-    if (!expectedUser || !expectedHash) {
-      return jsonError(503, "התחברות אינה מוגדרת");
-    }
-
-    const dummyHash =
-      "scrypt$16384$8$1$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-    const passOk = verifyPassword(password, expectedHash || dummyHash);
-    const userOk = username === expectedUser;
-    if (!userOk || !passOk) {
+    const auth = authenticateUser(username, password);
+    if (!auth.ok) {
+      if (!process.env.KUPA_ADMIN_USERNAME && !process.env.KUPA_TEST_ADMIN_USERNAME) {
+        return jsonError(503, "התחברות אינה מוגדרת");
+      }
       return jsonError(401, "שם משתמש או סיסמה אינם נכונים");
     }
 
-    const token = await createSessionToken(expectedUser);
+    const token = await createSessionToken(auth.account.username);
+    const accountId = resolveAccountIdFromSession(auth.account.username);
+    let workspaceFingerprint = "n/a";
+    try {
+      const path = accountWorkspacePath(accountId);
+      if (path) {
+        const digest = path.replace(/^workspaces\//, "").replace(/\.json$/, "");
+        workspaceFingerprint = shortFingerprint(digest);
+      }
+    } catch {
+      workspaceFingerprint = "n/a";
+    }
     return securityHeaders(
       NextResponse.json({
         ok: true,
         token,
         expiresIn: SESSION_MAX_AGE_SEC,
-      tokenType: "Bearer",
-      readOnly: false,
-      writeEnabled: true,
-      accountBound: true,
+        tokenType: "Bearer",
+        readOnly: false,
+        writeEnabled: true,
+        accountBound: true,
+        accountId,
+        workspaceFingerprint,
+        isTestWorkspace: auth.account.isTest,
+        cloudContractVersion: 2,
       })
     );
   } catch {

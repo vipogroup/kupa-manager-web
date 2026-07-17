@@ -1,4 +1,4 @@
-export type MobilePresetId = "basic" | "business" | "full" | "custom";
+export type MobilePresetId = "basic" | "business" | "full" | "readOnly" | "custom";
 
 export type MobileModuleId =
   | "home"
@@ -9,7 +9,27 @@ export type MobileModuleId =
   | "orders"
   | "inventory"
   | "deliveries"
+  | "drivers"
+  | "vehicles"
+  | "routes"
   | "sync";
+
+export type MobileModulePermission = {
+  visible: boolean;
+  readOnly: boolean;
+  createAllowed: boolean;
+  editAllowed: boolean;
+  disableAllowed: boolean;
+  deleteAllowed: boolean;
+  secondaryActionsAllowed: boolean;
+};
+
+export type MobileControlPreferences = {
+  version: 1;
+  preset: MobilePresetId;
+  hiddenElementIds: string[];
+  modulePermissions?: Partial<Record<MobileModuleId, MobileModulePermission>>;
+};
 
 export type MobileSurface =
   | "shell"
@@ -37,6 +57,8 @@ export type MobileUiPreferences = {
   preset: MobilePresetId;
   /** Optional element ids that are hidden on mobile viewport. Required ids ignored. */
   hiddenElementIds: string[];
+  /** Phase 9A.2 desktop-authored module permissions (server-enforced when present). */
+  modulePermissions?: Partial<Record<MobileModuleId, MobileModulePermission>>;
 };
 
 export type UiPreferencesEnvelope = {

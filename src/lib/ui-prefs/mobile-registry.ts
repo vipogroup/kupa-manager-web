@@ -245,6 +245,14 @@ export const MOBILE_REGISTRY: MobileRegistryElement[] = [
   el("sync", "dialog", "conflict", "הודעת Conflict", true),
   el("sync", "form", "pendingSync", "ממתין לסנכרון", true),
   el("sync", "form", "error", "הודעות שגיאה", true),
+  el("drivers", "list", "root", "רשימת נהגים", true),
+  el("drivers", "filters", "search", "חיפוש נהגים"),
+  el("drivers", "form", "create", "יצירת נהג"),
+  el("drivers", "list", "items", "פריטי נהגים", true),
+  el("vehicles", "list", "root", "רשימת רכבים", true),
+  el("vehicles", "form", "create", "יצירת רכב"),
+  el("routes", "list", "root", "רשימת מסלולים", true),
+  el("routes", "details", "root", "פרטי מסלול"),
 ];
 
 export const MOBILE_MODULE_LABELS: Record<MobileModuleId, string> = {
@@ -256,6 +264,9 @@ export const MOBILE_MODULE_LABELS: Record<MobileModuleId, string> = {
   orders: "הזמנות",
   inventory: "מלאי",
   deliveries: "משלוחים",
+  drivers: "נהגים",
+  vehicles: "רכבים",
+  routes: "מסלולים",
   sync: "סנכרון",
 };
 

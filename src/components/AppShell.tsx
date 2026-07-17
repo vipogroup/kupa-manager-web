@@ -11,6 +11,7 @@ import { ProductsPanel } from "@/components/ProductsPanel";
 import { OrdersPanel } from "@/components/OrdersPanel";
 import { InventoryPanel } from "@/components/InventoryPanel";
 import { DeliveriesPanel } from "@/components/DeliveriesPanel";
+import { DriversPanel, RoutesPanel, VehiclesPanel } from "@/components/FleetPanels";
 import { CustomizationCenter } from "@/components/CustomizationCenter";
 import { InstallAppPanel } from "@/components/InstallAppPanel";
 import { clearKupaServiceWorkerCaches } from "@/lib/pwa";
@@ -24,6 +25,9 @@ const tabs: { id: TabId; label: string }[] = [
   { id: "orders", label: "הזמנות" },
   { id: "inventory", label: "מלאי" },
   { id: "deliveries", label: "משלוחים" },
+  { id: "drivers", label: "נהגים" },
+  { id: "vehicles", label: "רכבים" },
+  { id: "routes", label: "מסלולים" },
   { id: "sync", label: "סנכרון" },
 ];
 
@@ -259,6 +263,9 @@ export function AppShell() {
             initialOrderId={deliveryFocusOrderId}
           />
         )}
+        {tab === "drivers" && <DriversPanel />}
+        {tab === "vehicles" && <VehiclesPanel />}
+        {tab === "routes" && <RoutesPanel />}
         {tab === "sync" && <SyncView />}
       </main>
 

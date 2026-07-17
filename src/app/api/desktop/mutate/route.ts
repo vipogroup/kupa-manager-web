@@ -85,6 +85,22 @@ export async function POST(req: NextRequest) {
 
     const accountId = resolveAccountIdFromSession(session.username);
 
+    // Mobile/Web cookie sessions honor mobileControl permissions; Windows Bearer skips (manager UI).
+    const authz = req.headers.get("authorization") || "";
+    const isDesktopBearer = /^Bearer\s+/i.test(authz);
+    if (!isDesktopBearer) {
+      const { assertMobileMutationAllowed } = await import("@/lib/mobile-permission-guard");
+      const perm = await assertMobileMutationAllowed(accountId, actionType);
+      if (!perm.ok) {
+        return securityHeaders(
+          NextResponse.json(
+            { ok: false, error: perm.message, code: perm.code },
+            { status: 403 }
+          )
+        );
+      }
+    }
+
     const prior = await readIdempotencyReceipt(accountId, idempotencyKey);
     if (prior && prior.actionType === actionType) {
       return securityHeaders(

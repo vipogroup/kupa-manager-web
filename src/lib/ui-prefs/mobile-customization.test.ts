@@ -50,6 +50,9 @@ describe("MOBILE category customization simulator", () => {
       "orders",
       "inventory",
       "deliveries",
+      "drivers",
+      "vehicles",
+      "routes",
       "sync",
     ]);
     for (const m of MOBILE_MODULES) {

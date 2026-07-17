@@ -1,3 +1,8 @@
+import { CLOUD_CONTRACT_VERSION } from "./cloud-contract";
+import type { DeliveryRoute, Driver, Vehicle } from "./phase9a-types";
+
+export type { DeliveryRoute, Driver, Vehicle, RouteStop } from "./phase9a-types";
+
 export type MoneyRecord = {
   id: string;
   title: string;
@@ -147,6 +152,10 @@ export type WorkspaceCounters = {
   nextOrderNumber: number;
   nextInventoryMovementNumber: number;
   nextDeliveryNumber: number;
+  nextDriverNumber?: number;
+  nextVehicleNumber?: number;
+  nextDeliveryRouteNumber?: number;
+  nextRouteStopNumber?: number;
 };
 
 export type DeliveryStatus = "pending" | "ready" | "cancelled";
@@ -187,6 +196,10 @@ export type Delivery = {
 
 export type AppData = {
   version: 1;
+  /** Cloud contract — not Windows DesktopSchemaVersion (15). */
+  cloudContractVersion?: number;
+  /** Optional echo of Windows schema for adapters; never confused with cloudContractVersion. */
+  desktopSchemaVersion?: number;
   incomes: MoneyRecord[];
   expenses: MoneyRecord[];
   customers: Customer[];
@@ -194,6 +207,9 @@ export type AppData = {
   orders: Order[];
   inventoryMovements: InventoryMovement[];
   deliveries: Delivery[];
+  drivers?: Driver[];
+  vehicles?: Vehicle[];
+  deliveryRoutes?: DeliveryRoute[];
   updatedAt: string;
   customerCounter?: number;
   productCounter?: number;
@@ -209,11 +225,15 @@ export type TabId =
   | "orders"
   | "inventory"
   | "deliveries"
+  | "drivers"
+  | "vehicles"
+  | "routes"
   | "sync";
 
 export function emptyData(): AppData {
   return {
     version: 1,
+    cloudContractVersion: CLOUD_CONTRACT_VERSION,
     incomes: [],
     expenses: [],
     customers: [],
@@ -221,6 +241,9 @@ export function emptyData(): AppData {
     orders: [],
     inventoryMovements: [],
     deliveries: [],
+    drivers: [],
+    vehicles: [],
+    deliveryRoutes: [],
     updatedAt: new Date().toISOString(),
     customerCounter: 0,
     productCounter: 0,
@@ -228,6 +251,10 @@ export function emptyData(): AppData {
       nextOrderNumber: 0,
       nextInventoryMovementNumber: 0,
       nextDeliveryNumber: 0,
+      nextDriverNumber: 0,
+      nextVehicleNumber: 0,
+      nextDeliveryRouteNumber: 0,
+      nextRouteStopNumber: 0,
     },
   };
 }

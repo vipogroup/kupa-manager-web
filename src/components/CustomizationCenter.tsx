@@ -21,6 +21,9 @@ const DESKTOP_CATS = [
   { id: "orders", label: "הזמנות" },
   { id: "inventory", label: "מלאי" },
   { id: "deliveries", label: "משלוחים" },
+  { id: "drivers", label: "נהגים" },
+  { id: "vehicles", label: "רכבים" },
+  { id: "routes", label: "מסלולים" },
   { id: "sync", label: "סנכרון" },
 ] as const;
 
@@ -28,6 +31,7 @@ const PRESET_LABELS: Record<MobilePresetId, string> = {
   basic: "בסיסי",
   business: "עסקי",
   full: "מלא",
+  readOnly: "קריאה בלבד",
   custom: "מותאם אישית",
 };
 

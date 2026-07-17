@@ -16,6 +16,7 @@ import {
   validateOrigin,
 } from "@/lib/security";
 import { RATE_IDS, enforceRateLimit } from "@/lib/rate-limit";
+import { mergeAppDataPreserveUnknown } from "@/lib/cloud-contract";
 
 export const runtime = "nodejs";
 
@@ -105,11 +106,44 @@ export async function PUT(req: NextRequest) {
   if (!validated.ok) return jsonError(400, "מבנה נתונים לא תקין");
 
   try {
+    // SAFE merge: preserve unknown top-level keys already in cloud that the client omitted.
+    const existing = await readAccountWorkspaceSnapshot(accountId);
+    let dataToSave = validated.data;
+    if (existing.exists && existing.snapshot?.data) {
+      const baseRec = existing.snapshot.data as unknown as Record<string, unknown>;
+      const overlayRec = validated.data as unknown as Record<string, unknown>;
+      const mergedRec = mergeAppDataPreserveUnknown(baseRec, overlayRec);
+      // If overlay omitted a known collection key entirely, keep cloud value (missing ≠ delete).
+      for (const key of [
+        "drivers",
+        "vehicles",
+        "deliveryRoutes",
+        "payments",
+        "warehouses",
+        "transfers",
+        "reversals",
+        "reservations",
+        "deliveryAreas",
+        "deliveryLabels",
+        "interfacePreferences",
+        "mobilePreferences",
+        "metadata",
+        "audit",
+      ]) {
+        if (!(key in overlayRec) && key in baseRec) {
+          mergedRec[key] = baseRec[key];
+        }
+      }
+      const revalidated = validateAppData(mergedRec);
+      if (!revalidated.ok) return jsonError(400, "מבנה נתונים לא תקין לאחר מיזוג");
+      dataToSave = revalidated.data;
+    }
+
     const result = await saveAccountWorkspaceGuarded({
       accountId,
       baseRevision: value.baseRevision,
       deviceId,
-      data: validated.data,
+      data: dataToSave,
     });
 
     if (!result.ok && result.kind === "conflict") {

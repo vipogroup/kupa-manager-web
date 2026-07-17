@@ -56,9 +56,11 @@ describe("DESKTOP-RO API contracts", () => {
     expect(src).toContain("tokenType");
     expect(src).toContain("Bearer");
     expect(src).not.toContain("validateOrigin");
-    expect(src).toContain("verifyPassword");
+    expect(src).toContain("authenticateUser");
     expect(src).toContain("writeEnabled: true");
     expect(src).toContain("readOnly: false");
+    expect(src).toContain("workspaceFingerprint");
+    expect(src).toContain("accountId");
     expect(src).toMatch(/Method not allowed/);
   });
 

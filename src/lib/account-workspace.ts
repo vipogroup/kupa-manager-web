@@ -6,14 +6,17 @@
 /** Stable internal account id for the single-tenant business account. */
 export const PRIMARY_ACCOUNT_ID = "primary-admin";
 
+/** Isolated Phase 9A.2 test workspace — never shares blob path with production. */
+export const TEST_ACCOUNT_ID = "phase9a2-test-workspace";
+
 /**
  * Map authenticated session identity → stable account workspace id.
- * Username is not used as path material (display name may change).
+ * Production admin → PRIMARY_ACCOUNT_ID.
+ * Test admin (KUPA_TEST_ADMIN_USERNAME) → TEST_ACCOUNT_ID.
  */
 export function resolveAccountIdFromSession(username: string): string {
-  // Single-tenant: any authenticated session maps to the primary account workspace.
-  // Username is accepted for future multi-account mapping; unused today.
-  void username;
+  const testUser = (process.env.KUPA_TEST_ADMIN_USERNAME || "").trim();
+  if (testUser && username === testUser) return TEST_ACCOUNT_ID;
   return PRIMARY_ACCOUNT_ID;
 }
 
