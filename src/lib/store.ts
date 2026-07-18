@@ -163,6 +163,7 @@ function defaultCounters(c?: AppData["counters"]) {
     nextVehicleNumber: c?.nextVehicleNumber ?? 0,
     nextDeliveryRouteNumber: c?.nextDeliveryRouteNumber ?? 0,
     nextRouteStopNumber: c?.nextRouteStopNumber ?? 0,
+    nextCustomerOrderRequestNumber: c?.nextCustomerOrderRequestNumber ?? 0,
   };
 }
 
@@ -182,6 +183,7 @@ function toAppData(s: AppData & Record<string, unknown>): AppData {
     "drivers",
     "vehicles",
     "deliveryRoutes",
+    "customerOrderRequests",
     "updatedAt",
     "customerCounter",
     "productCounter",
@@ -205,6 +207,7 @@ function toAppData(s: AppData & Record<string, unknown>): AppData {
     drivers: s.drivers || [],
     vehicles: s.vehicles || [],
     deliveryRoutes: s.deliveryRoutes || [],
+    customerOrderRequests: Array.isArray(s.customerOrderRequests) ? s.customerOrderRequests : [],
     updatedAt: s.updatedAt,
     customerCounter: s.customerCounter ?? 0,
     productCounter: s.productCounter ?? 0,
@@ -459,7 +462,7 @@ export const useKupaStore = create<Store>()(
         for (const [k, v] of Object.entries(normalized as Record<string, unknown>)) {
           if (knownUi.has(k)) continue;
           if (typeof v === "function") continue;
-          if (isCloudAppDataKnownKey(k) || k === "drivers" || k === "vehicles" || k === "deliveryRoutes") {
+          if (isCloudAppDataKnownKey(k)) {
             continue;
           }
           // Preserve unknown top-level from cloud payload
@@ -478,6 +481,7 @@ export const useKupaStore = create<Store>()(
               "drivers",
               "vehicles",
               "deliveryRoutes",
+              "customerOrderRequests",
               "updatedAt",
               "customerCounter",
               "productCounter",
@@ -502,6 +506,9 @@ export const useKupaStore = create<Store>()(
           drivers: normalized.drivers || [],
           vehicles: normalized.vehicles || [],
           deliveryRoutes: normalized.deliveryRoutes || [],
+          customerOrderRequests: Array.isArray(normalized.customerOrderRequests)
+            ? normalized.customerOrderRequests
+            : [],
           updatedAt: normalized.updatedAt,
           customerCounter: normalized.customerCounter ?? 0,
           productCounter: normalized.productCounter ?? 0,
@@ -543,6 +550,9 @@ export const useKupaStore = create<Store>()(
         state.drivers = normalized.drivers || [];
         state.vehicles = normalized.vehicles || [];
         state.deliveryRoutes = normalized.deliveryRoutes || [];
+        state.customerOrderRequests = Array.isArray(normalized.customerOrderRequests)
+          ? normalized.customerOrderRequests
+          : [];
         state.customerCounter = normalized.customerCounter;
         state.productCounter = normalized.productCounter;
         state.counters = defaultCounters(normalized.counters);

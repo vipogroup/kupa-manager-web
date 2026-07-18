@@ -53,6 +53,8 @@ export type Product = {
   stockQuantity: number;
   unit: string;
   active: boolean;
+  /** When true, product may appear on the public customer order form. */
+  visibleOnCustomerOrderForm?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -156,6 +158,7 @@ export type WorkspaceCounters = {
   nextVehicleNumber?: number;
   nextDeliveryRouteNumber?: number;
   nextRouteStopNumber?: number;
+  nextCustomerOrderRequestNumber?: number;
 };
 
 export type DeliveryStatus = "pending" | "ready" | "cancelled";
@@ -210,6 +213,8 @@ export type AppData = {
   drivers?: Driver[];
   vehicles?: Vehicle[];
   deliveryRoutes?: DeliveryRoute[];
+  /** Public form inbox — cloud-shared; not a paid order until Approved. */
+  customerOrderRequests?: Array<{ id: string; [key: string]: unknown }>;
   updatedAt: string;
   customerCounter?: number;
   productCounter?: number;
@@ -228,6 +233,7 @@ export type TabId =
   | "drivers"
   | "vehicles"
   | "routes"
+  | "orderRequests"
   | "sync";
 
 export function emptyData(): AppData {
@@ -244,6 +250,7 @@ export function emptyData(): AppData {
     drivers: [],
     vehicles: [],
     deliveryRoutes: [],
+    customerOrderRequests: [],
     updatedAt: new Date().toISOString(),
     customerCounter: 0,
     productCounter: 0,
@@ -255,6 +262,7 @@ export function emptyData(): AppData {
       nextVehicleNumber: 0,
       nextDeliveryRouteNumber: 0,
       nextRouteStopNumber: 0,
+      nextCustomerOrderRequestNumber: 0,
     },
   };
 }

@@ -52,6 +52,11 @@ import {
 } from "./phase9a-fleet";
 import { CLOUD_CONTRACT_VERSION } from "./cloud-contract";
 import { createOrderPaymentInData, voidOrderPaymentInData } from "./order-payments-cloud";
+import {
+  approveCorAtomic,
+  rejectCor,
+  startReviewCor,
+} from "./customer-order-requests";
 
 /** Explicit allowlist — never accept arbitrary AppData patches. */
 export const DESKTOP_MUTATE_ACTIONS = [
@@ -96,6 +101,9 @@ export const DESKTOP_MUTATE_ACTIONS = [
   "reorderRouteStops",
   "createOrderPayment",
   "voidOrderPayment",
+  "startReviewCustomerOrderRequest",
+  "approveCustomerOrderRequest",
+  "rejectCustomerOrderRequest",
 ] as const;
 
 export type DesktopMutateAction = (typeof DESKTOP_MUTATE_ACTIONS)[number];
@@ -490,6 +498,50 @@ export function applyDesktopMutation(
         data: { ...r.data, cloudContractVersion: CLOUD_CONTRACT_VERSION },
         record: r.payment,
         recordKind: "orderPayment",
+      };
+    }
+    case "startReviewCustomerOrderRequest": {
+      const id = requireId(p);
+      if (!id) return { ok: false, error: "מזהה בקשה חובה" };
+      const r = startReviewCor(data, id, String(p.reviewer || "manager"));
+      if ("error" in r) return { ok: false, error: r.error };
+      return {
+        ok: true,
+        data: { ...r.data, cloudContractVersion: CLOUD_CONTRACT_VERSION },
+        record: r.request,
+        recordKind: "customerOrderRequest",
+      };
+    }
+    case "approveCustomerOrderRequest": {
+      const id = requireId(p);
+      if (!id) return { ok: false, error: "מזהה בקשה חובה" };
+      const r = approveCorAtomic(data, {
+        id,
+        reviewer: String(p.reviewer || "manager"),
+        selectedCustomerId: typeof p.selectedCustomerId === "string" ? p.selectedCustomerId : undefined,
+        forceNewCustomer: p.forceNewCustomer === true,
+        shippingFee: typeof p.shippingFee === "number" ? p.shippingFee : undefined,
+        createDelivery: p.createDelivery !== false,
+        scheduledDate: typeof p.scheduledDate === "string" ? p.scheduledDate : undefined,
+      });
+      if ("error" in r) return { ok: false, error: r.error };
+      return {
+        ok: true,
+        data: { ...r.data, cloudContractVersion: CLOUD_CONTRACT_VERSION },
+        record: r.request,
+        recordKind: "customerOrderRequest",
+      };
+    }
+    case "rejectCustomerOrderRequest": {
+      const id = requireId(p);
+      if (!id) return { ok: false, error: "מזהה בקשה חובה" };
+      const r = rejectCor(data, id, String(p.reason || ""), String(p.reviewer || "manager"));
+      if ("error" in r) return { ok: false, error: r.error };
+      return {
+        ok: true,
+        data: { ...r.data, cloudContractVersion: CLOUD_CONTRACT_VERSION },
+        record: r.request,
+        recordKind: "customerOrderRequest",
       };
     }
     default:

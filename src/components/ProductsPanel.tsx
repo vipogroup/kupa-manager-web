@@ -91,6 +91,7 @@ export function ProductsPanel({ onManageInventory }: { onManageInventory?: (prod
       stockQuantity: p.stockQuantity,
       unit: p.unit,
       active: p.active,
+      visibleOnCustomerOrderForm: p.visibleOnCustomerOrderForm === true,
     });
     setSalePriceText(String(p.salePrice));
     setCostPriceText(String(p.costPrice));
@@ -144,6 +145,7 @@ export function ProductsPanel({ onManageInventory }: { onManageInventory?: (prod
       costPrice,
       stockQuantity,
       active: draft.active !== false,
+      visibleOnCustomerOrderForm: draft.visibleOnCustomerOrderForm === true,
     };
     const v = validateProductInput(payload, store.products, editingId || undefined);
     if (!v.ok) {
@@ -374,6 +376,14 @@ export function ProductsPanel({ onManageInventory }: { onManageInventory?: (prod
             value={draft.unit || "יחידה"}
             onChange={(v) => setDraft((d) => ({ ...d, unit: v }))}
           />
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={draft.visibleOnCustomerOrderForm === true}
+              onChange={(e) => setDraft((d) => ({ ...d, visibleOnCustomerOrderForm: e.target.checked }))}
+            />
+            הצג בטופס הזמנה ציבורי ללקוחות
+          </label>
           {error ? <p className="text-sm text-rose-700">{error}</p> : null}
           <div className="grid grid-cols-2 gap-2 pt-1">
             <button type="button" onClick={cancelForm} className="rounded-xl border border-[var(--line)] py-3 font-semibold">

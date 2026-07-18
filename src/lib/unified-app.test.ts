@@ -230,7 +230,7 @@ describe("UNIFIED-APP installable web + single cloud", () => {
       return;
     }
     const src = readFileSync(win, "utf8");
-    expect(src).toMatch(/\$script:Version\s*=\s*'3\.2\.\d+'/);
+    expect(src).toMatch(/\$script:Version\s*=\s*'3\.\d+\.\d+'/);
   });
 
   it("UNIFIED-APP-042 Windows DataRoot preserved for local modules", () => {

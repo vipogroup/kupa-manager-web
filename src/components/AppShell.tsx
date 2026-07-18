@@ -12,6 +12,7 @@ import { OrdersPanel } from "@/components/OrdersPanel";
 import { InventoryPanel } from "@/components/InventoryPanel";
 import { DeliveriesPanel } from "@/components/DeliveriesPanel";
 import { DriversPanel, RoutesPanel, VehiclesPanel } from "@/components/FleetPanels";
+import { OrderRequestsPanel } from "@/components/OrderRequestsPanel";
 import { CustomizationCenter } from "@/components/CustomizationCenter";
 import { InstallAppPanel } from "@/components/InstallAppPanel";
 import { clearKupaServiceWorkerCaches } from "@/lib/pwa";
@@ -23,6 +24,7 @@ const tabs: { id: TabId; label: string }[] = [
   { id: "customers", label: "לקוחות" },
   { id: "products", label: "מוצרים" },
   { id: "orders", label: "הזמנות" },
+  { id: "orderRequests", label: "בקשות הזמנה" },
   { id: "inventory", label: "מלאי" },
   { id: "deliveries", label: "משלוחים" },
   { id: "drivers", label: "נהגים" },
@@ -60,6 +62,11 @@ export function AppShell() {
   const incomeTotal = useMemo(() => sumAmounts(store.incomes), [store.incomes]);
   const expenseTotal = useMemo(() => sumAmounts(store.expenses), [store.expenses]);
   const balance = incomeTotal - expenseTotal;
+  const newOrderRequestCount = useMemo(() => {
+    const raw = (store as AppData & { customerOrderRequests?: Array<{ status?: string }> }).customerOrderRequests;
+    if (!Array.isArray(raw)) return 0;
+    return raw.filter((r) => r.status === "New").length;
+  }, [store]);
 
   if (!ready || !cloudHydrated) {
     return (
@@ -144,6 +151,9 @@ export function AppShell() {
                 }`}
               >
                 {t.label}
+                {t.id === "orderRequests" && newOrderRequestCount > 0
+                  ? ` (${newOrderRequestCount})`
+                  : ""}
               </button>
             ))}
           </div>
@@ -251,6 +261,7 @@ export function AppShell() {
             }}
           />
         )}
+        {tab === "orderRequests" && <OrderRequestsPanel />}
         {tab === "inventory" && (
           <InventoryPanel
             key={inventoryFocusProductId || "inv-list"}
@@ -286,6 +297,9 @@ export function AppShell() {
               }`}
             >
               {t.label}
+              {t.id === "orderRequests" && newOrderRequestCount > 0
+                ? ` (${newOrderRequestCount})`
+                : ""}
             </button>
           ))}
         </div>

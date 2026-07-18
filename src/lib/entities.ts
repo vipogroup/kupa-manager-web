@@ -185,6 +185,7 @@ export function normalizeProduct(raw: unknown, index = 0): Product {
     "stockQuantity",
     "unit",
     "active",
+    "visibleOnCustomerOrderForm",
     "createdAt",
     "updatedAt",
     "price",
@@ -212,6 +213,7 @@ export function normalizeProduct(raw: unknown, index = 0): Product {
     stockQuantity: Math.max(0, stockQuantity),
     unit: str(o.unit, "יחידה") || "יחידה",
     active: bool(o.active, true),
+    visibleOnCustomerOrderForm: bool(o.visibleOnCustomerOrderForm, false),
     createdAt: str(o.createdAt, now),
     updatedAt: str(o.updatedAt, now),
   };
@@ -232,6 +234,7 @@ export function normalizeAppDataEntities(data: AppData): AppData {
     drivers: Array.isArray(data.drivers) ? data.drivers : [],
     vehicles: Array.isArray(data.vehicles) ? data.vehicles : [],
     deliveryRoutes: Array.isArray(data.deliveryRoutes) ? data.deliveryRoutes : [],
+    customerOrderRequests: Array.isArray(data.customerOrderRequests) ? data.customerOrderRequests : [],
     customerCounter: counters.customerCounter,
     productCounter: counters.productCounter,
     counters: {
@@ -242,6 +245,7 @@ export function normalizeAppDataEntities(data: AppData): AppData {
       nextVehicleNumber: data.counters?.nextVehicleNumber ?? 0,
       nextDeliveryRouteNumber: data.counters?.nextDeliveryRouteNumber ?? 0,
       nextRouteStopNumber: data.counters?.nextRouteStopNumber ?? 0,
+      nextCustomerOrderRequestNumber: data.counters?.nextCustomerOrderRequestNumber ?? 0,
     },
   };
   return normalizeFleetInData(
@@ -558,6 +562,7 @@ export function emptyProductDraft(): ProductInput {
     stockQuantity: 0,
     unit: "יחידה",
     active: true,
+    visibleOnCustomerOrderForm: false,
   };
 }
 

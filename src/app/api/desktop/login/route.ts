@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
         accountId,
         workspaceFingerprint,
         isTestWorkspace: auth.account.isTest,
-        cloudContractVersion: 3,
+        cloudContractVersion: 4,
       })
     );
   } catch {

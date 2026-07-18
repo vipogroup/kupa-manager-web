@@ -26,6 +26,7 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
   if (o.drivers !== undefined && !Array.isArray(o.drivers)) return { ok: false };
   if (o.vehicles !== undefined && !Array.isArray(o.vehicles)) return { ok: false };
   if (o.deliveryRoutes !== undefined && !Array.isArray(o.deliveryRoutes)) return { ok: false };
+  if (o.customerOrderRequests !== undefined && !Array.isArray(o.customerOrderRequests)) return { ok: false };
 
   for (const row of o.incomes) {
     if (!row || typeof row !== "object") return { ok: false };
@@ -91,6 +92,7 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
     "drivers",
     "vehicles",
     "deliveryRoutes",
+    "customerOrderRequests",
     "updatedAt",
     "customerCounter",
     "productCounter",
@@ -110,6 +112,7 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
   const driversRaw = Array.isArray(o.drivers) ? o.drivers : [];
   const vehiclesRaw = Array.isArray(o.vehicles) ? o.vehicles : [];
   const routesRaw = Array.isArray(o.deliveryRoutes) ? o.deliveryRoutes : [];
+  const corRaw = Array.isArray(o.customerOrderRequests) ? o.customerOrderRequests : [];
   for (const row of driversRaw) {
     if (!row || typeof row !== "object") return { ok: false };
     if (!isString((row as Record<string, unknown>).id)) return { ok: false };
@@ -122,6 +125,10 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
     if (!row || typeof row !== "object") return { ok: false };
     if (!isString((row as Record<string, unknown>).id)) return { ok: false };
   }
+  for (const row of corRaw) {
+    if (!row || typeof row !== "object") return { ok: false };
+    if (!isString((row as Record<string, unknown>).id)) return { ok: false };
+  }
 
   let counters = {
     nextOrderNumber: 0,
@@ -131,6 +138,7 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
     nextVehicleNumber: 0,
     nextDeliveryRouteNumber: 0,
     nextRouteStopNumber: 0,
+    nextCustomerOrderRequestNumber: 0,
   };
   if (o.counters && typeof o.counters === "object" && !Array.isArray(o.counters)) {
     const c = o.counters as Record<string, unknown>;
@@ -144,6 +152,7 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
       nextVehicleNumber: num("nextVehicleNumber"),
       nextDeliveryRouteNumber: num("nextDeliveryRouteNumber"),
       nextRouteStopNumber: num("nextRouteStopNumber"),
+      nextCustomerOrderRequestNumber: num("nextCustomerOrderRequestNumber"),
     };
   }
 
@@ -169,6 +178,7 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
     drivers: driversRaw as AppData["drivers"],
     vehicles: vehiclesRaw as AppData["vehicles"],
     deliveryRoutes: routesRaw as AppData["deliveryRoutes"],
+    customerOrderRequests: corRaw as AppData["customerOrderRequests"],
     updatedAt: o.updatedAt as string,
     customerCounter: typeof o.customerCounter === "number" && Number.isFinite(o.customerCounter) ? o.customerCounter : undefined,
     productCounter: typeof o.productCounter === "number" && Number.isFinite(o.productCounter) ? o.productCounter : undefined,

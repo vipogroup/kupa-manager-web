@@ -250,6 +250,7 @@ function nextCounter(data: AppData, key: keyof NonNullable<AppData["counters"]>)
     nextVehicleNumber: data.counters?.nextVehicleNumber ?? 0,
     nextDeliveryRouteNumber: data.counters?.nextDeliveryRouteNumber ?? 0,
     nextRouteStopNumber: data.counters?.nextRouteStopNumber ?? 0,
+    nextCustomerOrderRequestNumber: data.counters?.nextCustomerOrderRequestNumber ?? 0,
   };
   const current = counters[key] ?? 0;
   const n = Math.max(1, current + 1);
