@@ -481,11 +481,34 @@ function SyncView() {
   const [confirmLoad, setConfirmLoad] = useState(false);
   const [conflictOpen, setConflictOpen] = useState(false);
   const [deviceDiag, setDeviceDiag] = useState("");
+  const [workspaceFp, setWorkspaceFp] = useState("");
+  const [accountMasked, setAccountMasked] = useState("");
+  const [sessionStatus, setSessionStatus] = useState("");
+  const [whoamiRevision, setWhoamiRevision] = useState<number | null>(null);
   const saving = store.syncStatus === "saving";
   const loading = store.syncStatus === "loading";
 
   useEffect(() => {
     setDeviceDiag(getOrCreateDeviceId().slice(0, 8));
+    void fetch("/api/auth/whoami", { credentials: "include" })
+      .then(async (r) => {
+        if (r.status === 401) {
+          window.location.href = "/login";
+          return;
+        }
+        if (!r.ok) return;
+        const j = (await r.json()) as {
+          workspaceFingerprint?: string;
+          accountIdMasked?: string;
+          sessionStatus?: string;
+          revision?: number;
+        };
+        setWorkspaceFp(j.workspaceFingerprint || "");
+        setAccountMasked(j.accountIdMasked || "");
+        setSessionStatus(j.sessionStatus || "");
+        if (typeof j.revision === "number") setWhoamiRevision(j.revision);
+      })
+      .catch(() => {});
   }, []);
 
   async function pushCloud() {
@@ -592,13 +615,25 @@ function SyncView() {
           <div className="rounded-xl border border-[var(--line)] bg-white px-3 py-2">
             <dt className="text-xs text-[var(--muted)]">revision נוכחי</dt>
             <dd className="font-semibold" data-testid="acct-ws-revision">
-              {store.cloudRevision || 0}
+              {store.cloudRevision || whoamiRevision || 0}
+            </dd>
+          </div>
+          <div className="rounded-xl border border-[var(--line)] bg-white px-3 py-2">
+            <dt className="text-xs text-[var(--muted)]">חשבון (מוסווה)</dt>
+            <dd className="font-semibold font-mono text-xs" data-testid="acct-ws-account-masked" dir="ltr">
+              {accountMasked || "—"}
+            </dd>
+          </div>
+          <div className="rounded-xl border border-[var(--line)] bg-white px-3 py-2">
+            <dt className="text-xs text-[var(--muted)]">Workspace fingerprint</dt>
+            <dd className="font-semibold font-mono text-xs" data-testid="acct-ws-fingerprint" dir="ltr">
+              {workspaceFp || "—"}
             </dd>
           </div>
           <div className="rounded-xl border border-[var(--line)] bg-white px-3 py-2 col-span-2">
-            <dt className="text-xs text-[var(--muted)]">מזהה מכשיר (אבחון בלבד)</dt>
+            <dt className="text-xs text-[var(--muted)]">סטטוס Session / מזהה מכשיר (אבחון)</dt>
             <dd className="font-mono text-xs" data-testid="acct-ws-device-diag" dir="ltr">
-              {deviceDiag || "—"}
+              {(sessionStatus || "—") + " · device " + (deviceDiag || "—")}
             </dd>
           </div>
         </dl>

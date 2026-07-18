@@ -14,6 +14,11 @@ import {
 } from "@/lib/security";
 import { RATE_IDS, enforceRateLimit } from "@/lib/rate-limit";
 import { authenticateUser } from "@/lib/auth-accounts";
+import {
+  accountWorkspacePath,
+  resolveAccountIdFromSession,
+  shortFingerprint,
+} from "@/lib/account-workspace";
 
 export const runtime = "nodejs";
 
@@ -47,11 +52,24 @@ export async function POST(req: NextRequest) {
   }
 
   const token = createSessionToken(auth.account.username);
+  const accountId = resolveAccountIdFromSession(auth.account.username);
+  let workspaceFingerprint = "n/a";
+  try {
+    const path = accountWorkspacePath(accountId);
+    if (path) {
+      const digest = path.replace(/^workspaces\//, "").replace(/\.json$/, "");
+      workspaceFingerprint = shortFingerprint(digest);
+    }
+  } catch {
+    workspaceFingerprint = "n/a";
+  }
   const res = securityHeaders(
     NextResponse.json({
       ok: true,
       accountId: auth.account.accountId,
+      workspaceFingerprint,
       isTestWorkspace: auth.account.isTest,
+      sessionStatus: "authenticated",
     })
   );
   res.cookies.set(SESSION_COOKIE, await token, sessionCookieOptions(isProductionRuntime()));
