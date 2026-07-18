@@ -44,14 +44,23 @@ export function OrderRequestsPanel() {
     await applyCloudLoad(true);
   }
 
+  async function fetchSnapshotMeta(): Promise<{ revision: number; etag: string }> {
+    const res = await fetch("/api/desktop/snapshot", { credentials: "include" });
+    if (!res.ok) throw new Error("snapshot");
+    const j = (await res.json()) as { revision?: number; etag?: string };
+    return {
+      revision: typeof j.revision === "number" ? j.revision : 0,
+      etag: typeof j.etag === "string" ? j.etag : "",
+    };
+  }
+
   async function runAction(actionType: string, payload: Record<string, unknown>) {
     setBusy(true);
     setError("");
     setMessage("");
     try {
-      // Ensure we have fresh revision/etag
       await reloadCloud();
-      const rev = useKupaStore.getState().cloudRevision || 0;
+      const meta = await fetchSnapshotMeta();
       const res = await fetch("/api/desktop/mutate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -59,8 +68,8 @@ export function OrderRequestsPanel() {
         body: JSON.stringify({
           actionType,
           payload,
-          expectedRevision: rev,
-          expectedETag: "",
+          expectedRevision: meta.revision,
+          expectedETag: meta.etag,
           idempotencyKey: crypto.randomUUID().replace(/-/g, ""),
           deviceId: "web-admin-cor",
         }),
