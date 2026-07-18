@@ -12,6 +12,7 @@ export type MobileModuleId =
   | "drivers"
   | "vehicles"
   | "routes"
+  | "courierDailyView"
   | "sync";
 
 export type MobileModulePermission = {

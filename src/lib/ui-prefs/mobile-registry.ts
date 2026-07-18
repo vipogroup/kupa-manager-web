@@ -253,6 +253,19 @@ export const MOBILE_REGISTRY: MobileRegistryElement[] = [
   el("vehicles", "form", "create", "יצירת רכב"),
   el("routes", "list", "root", "רשימת מסלולים", true),
   el("routes", "details", "root", "פרטי מסלול"),
+
+  // courier daily view (restricted mobile surface)
+  el("courierDailyView", "summary", "dailyTotals", "סיכום יומי לגבייה", true),
+  el("courierDailyView", "list", "stops", "רשימת תחנות", true),
+  el("courierDailyView", "card", "customerName", "שם לקוח", true),
+  el("courierDailyView", "card", "address", "כתובת מלאה", true),
+  el("courierDailyView", "card", "phone", "טלפון לקוח"),
+  el("courierDailyView", "card", "items", "פריטי משלוח"),
+  el("courierDailyView", "card", "cash", "סכום לגבייה", true),
+  el("courierDailyView", "card", "notes", "הערות"),
+  el("courierDailyView", "actions", "navigation", "פתח ניווט"),
+  el("courierDailyView", "actions", "call", "חיוג"),
+  el("courierDailyView", "actions", "refresh", "רענון", true),
 ];
 
 export const MOBILE_MODULE_LABELS: Record<MobileModuleId, string> = {
@@ -267,6 +280,7 @@ export const MOBILE_MODULE_LABELS: Record<MobileModuleId, string> = {
   drivers: "נהגים",
   vehicles: "רכבים",
   routes: "מסלולים",
+  courierDailyView: "תצוגת שליח יומית",
   sync: "סנכרון",
 };
 

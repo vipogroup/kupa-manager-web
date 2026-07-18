@@ -2,7 +2,7 @@
  * Cloud contract version — independent of Windows DesktopSchemaVersion (16)
  * and Web package version. Bump when cloud AppData shape / mutate actions change.
  */
-export const CLOUD_CONTRACT_VERSION = 4 as const;
+export const CLOUD_CONTRACT_VERSION = 5 as const;
 
 export type CloudContractVersion = typeof CLOUD_CONTRACT_VERSION;
 
@@ -22,6 +22,7 @@ export const CLOUD_APP_DATA_KNOWN_KEYS = [
   "vehicles",
   "deliveryRoutes",
   "customerOrderRequests",
+  "courierAccess",
   "updatedAt",
   "customerCounter",
   "productCounter",

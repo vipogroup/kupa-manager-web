@@ -53,6 +53,7 @@ describe("MOBILE category customization simulator", () => {
       "drivers",
       "vehicles",
       "routes",
+      "courierDailyView",
       "sync",
     ]);
     for (const m of MOBILE_MODULES) {

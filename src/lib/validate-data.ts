@@ -27,6 +27,7 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
   if (o.vehicles !== undefined && !Array.isArray(o.vehicles)) return { ok: false };
   if (o.deliveryRoutes !== undefined && !Array.isArray(o.deliveryRoutes)) return { ok: false };
   if (o.customerOrderRequests !== undefined && !Array.isArray(o.customerOrderRequests)) return { ok: false };
+  if (o.courierAccess !== undefined && !Array.isArray(o.courierAccess)) return { ok: false };
 
   for (const row of o.incomes) {
     if (!row || typeof row !== "object") return { ok: false };
@@ -93,6 +94,7 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
     "vehicles",
     "deliveryRoutes",
     "customerOrderRequests",
+    "courierAccess",
     "updatedAt",
     "customerCounter",
     "productCounter",
@@ -113,6 +115,7 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
   const vehiclesRaw = Array.isArray(o.vehicles) ? o.vehicles : [];
   const routesRaw = Array.isArray(o.deliveryRoutes) ? o.deliveryRoutes : [];
   const corRaw = Array.isArray(o.customerOrderRequests) ? o.customerOrderRequests : [];
+  const courierAccessRaw = Array.isArray(o.courierAccess) ? o.courierAccess : [];
   for (const row of driversRaw) {
     if (!row || typeof row !== "object") return { ok: false };
     if (!isString((row as Record<string, unknown>).id)) return { ok: false };
@@ -126,6 +129,10 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
     if (!isString((row as Record<string, unknown>).id)) return { ok: false };
   }
   for (const row of corRaw) {
+    if (!row || typeof row !== "object") return { ok: false };
+    if (!isString((row as Record<string, unknown>).id)) return { ok: false };
+  }
+  for (const row of courierAccessRaw) {
     if (!row || typeof row !== "object") return { ok: false };
     if (!isString((row as Record<string, unknown>).id)) return { ok: false };
   }
@@ -179,6 +186,7 @@ export function validateAppData(input: unknown): { ok: true; data: AppData } | {
     vehicles: vehiclesRaw as AppData["vehicles"],
     deliveryRoutes: routesRaw as AppData["deliveryRoutes"],
     customerOrderRequests: corRaw as AppData["customerOrderRequests"],
+    courierAccess: courierAccessRaw as AppData["courierAccess"],
     updatedAt: o.updatedAt as string,
     customerCounter: typeof o.customerCounter === "number" && Number.isFinite(o.customerCounter) ? o.customerCounter : undefined,
     productCounter: typeof o.productCounter === "number" && Number.isFinite(o.productCounter) ? o.productCounter : undefined,

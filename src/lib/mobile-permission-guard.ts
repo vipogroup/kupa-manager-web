@@ -33,6 +33,8 @@ const ACTION_MODULE: Partial<Record<DesktopMutateAction, MobileModuleId>> = {
   startReviewCustomerOrderRequest: "orders",
   approveCustomerOrderRequest: "orders",
   rejectCustomerOrderRequest: "orders",
+  upsertCourierAccess: "drivers",
+  revokeCourierAccess: "drivers",
   createDelivery: "deliveries",
   updateDelivery: "deliveries",
   markDeliveryReady: "deliveries",

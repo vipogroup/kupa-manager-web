@@ -8,6 +8,7 @@ import {
 } from "@/lib/account-workspace";
 import { accountWorkspacePath } from "@/lib/workspace-path";
 import { readAccountWorkspaceSnapshot } from "@/lib/cloud";
+import { findAccountByUsername } from "@/lib/auth-accounts";
 
 export const runtime = "nodejs";
 
@@ -46,6 +47,8 @@ export async function GET(req: NextRequest) {
     revision = 0;
   }
 
+  const account = findAccountByUsername(session.username);
+
   return securityHeaders(
     NextResponse.json({
       ok: true,
@@ -56,6 +59,7 @@ export async function GET(req: NextRequest) {
           : accountId === PRIMARY_ACCOUNT_ID
             ? "primary"
             : "other",
+      role: account?.role || "admin",
       workspaceFingerprint,
       revision,
       isTestWorkspace: accountId === TEST_ACCOUNT_ID,

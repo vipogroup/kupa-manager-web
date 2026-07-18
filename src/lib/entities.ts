@@ -235,6 +235,7 @@ export function normalizeAppDataEntities(data: AppData): AppData {
     vehicles: Array.isArray(data.vehicles) ? data.vehicles : [],
     deliveryRoutes: Array.isArray(data.deliveryRoutes) ? data.deliveryRoutes : [],
     customerOrderRequests: Array.isArray(data.customerOrderRequests) ? data.customerOrderRequests : [],
+    courierAccess: Array.isArray(data.courierAccess) ? data.courierAccess : [],
     customerCounter: counters.customerCounter,
     productCounter: counters.productCounter,
     counters: {

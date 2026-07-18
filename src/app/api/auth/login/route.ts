@@ -13,7 +13,7 @@ import {
   validateOrigin,
 } from "@/lib/security";
 import { RATE_IDS, enforceRateLimit } from "@/lib/rate-limit";
-import { authenticateUser } from "@/lib/auth-accounts";
+import { anyAuthConfigured, authenticateUser } from "@/lib/auth-accounts";
 import { resolveAccountIdFromSession, shortFingerprint } from "@/lib/account-workspace";
 import { accountWorkspacePath } from "@/lib/workspace-path";
 
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
 
   const auth = authenticateUser(username, password);
   if (!auth.ok) {
-    if (!process.env.KUPA_ADMIN_USERNAME && !process.env.KUPA_TEST_ADMIN_USERNAME) {
+    if (!anyAuthConfigured()) {
       return jsonError(503, "התחברות אינה מוגדרת");
     }
     return jsonError(401, "שם משתמש או סיסמה אינם נכונים");
@@ -64,9 +64,11 @@ export async function POST(req: NextRequest) {
     NextResponse.json({
       ok: true,
       accountId: auth.account.accountId,
+      role: auth.account.role,
       workspaceFingerprint,
       isTestWorkspace: auth.account.isTest,
       sessionStatus: "authenticated",
+      nextPath: auth.account.role === "courier" ? "/courier" : "/",
     })
   );
   res.cookies.set(SESSION_COOKIE, await token, sessionCookieOptions(isProductionRuntime()));

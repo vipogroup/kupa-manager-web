@@ -11,12 +11,16 @@ export const TEST_ACCOUNT_ID = "phase9a2-test-workspace";
 
 /**
  * Map authenticated session identity → stable account workspace id.
- * Production admin → PRIMARY_ACCOUNT_ID.
- * Test admin (KUPA_TEST_ADMIN_USERNAME) → TEST_ACCOUNT_ID.
+ * Test admin + test courier → TEST_ACCOUNT_ID.
+ * Primary admin + primary courier → PRIMARY_ACCOUNT_ID.
  */
 export function resolveAccountIdFromSession(username: string): string {
-  const testUser = (process.env.KUPA_TEST_ADMIN_USERNAME || "").trim();
-  if (testUser && username === testUser) return TEST_ACCOUNT_ID;
+  const u = String(username || "").trim();
+  const testAdmin = (process.env.KUPA_TEST_ADMIN_USERNAME || "").trim();
+  const testCourier = (process.env.KUPA_TEST_COURIER_USERNAME || "").trim();
+  if ((testAdmin && u === testAdmin) || (testCourier && u === testCourier)) {
+    return TEST_ACCOUNT_ID;
+  }
   return PRIMARY_ACCOUNT_ID;
 }
 

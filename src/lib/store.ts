@@ -184,6 +184,7 @@ function toAppData(s: AppData & Record<string, unknown>): AppData {
     "vehicles",
     "deliveryRoutes",
     "customerOrderRequests",
+    "courierAccess",
     "updatedAt",
     "customerCounter",
     "productCounter",
@@ -208,6 +209,7 @@ function toAppData(s: AppData & Record<string, unknown>): AppData {
     vehicles: s.vehicles || [],
     deliveryRoutes: s.deliveryRoutes || [],
     customerOrderRequests: Array.isArray(s.customerOrderRequests) ? s.customerOrderRequests : [],
+    courierAccess: Array.isArray(s.courierAccess) ? s.courierAccess : [],
     updatedAt: s.updatedAt,
     customerCounter: s.customerCounter ?? 0,
     productCounter: s.productCounter ?? 0,
@@ -482,6 +484,7 @@ export const useKupaStore = create<Store>()(
               "vehicles",
               "deliveryRoutes",
               "customerOrderRequests",
+              "courierAccess",
               "updatedAt",
               "customerCounter",
               "productCounter",
@@ -509,6 +512,7 @@ export const useKupaStore = create<Store>()(
           customerOrderRequests: Array.isArray(normalized.customerOrderRequests)
             ? normalized.customerOrderRequests
             : [],
+          courierAccess: Array.isArray(normalized.courierAccess) ? normalized.courierAccess : [],
           updatedAt: normalized.updatedAt,
           customerCounter: normalized.customerCounter ?? 0,
           productCounter: normalized.productCounter ?? 0,
@@ -553,6 +557,7 @@ export const useKupaStore = create<Store>()(
         state.customerOrderRequests = Array.isArray(normalized.customerOrderRequests)
           ? normalized.customerOrderRequests
           : [];
+        state.courierAccess = Array.isArray(normalized.courierAccess) ? normalized.courierAccess : [];
         state.customerCounter = normalized.customerCounter;
         state.productCounter = normalized.productCounter;
         state.counters = defaultCounters(normalized.counters);

@@ -27,7 +27,15 @@ function LoginForm() {
         setError(json.error || "שם משתמש או סיסמה אינם נכונים");
         return;
       }
-      router.replace(nextPath.startsWith("/") ? nextPath : "/");
+      const roleNext =
+        json.role === "courier"
+          ? "/courier"
+          : nextPath.startsWith("/")
+            ? nextPath
+            : "/";
+      // Couriers must not land on admin shell even if next=/ was requested.
+      const dest = json.role === "courier" ? "/courier" : roleNext;
+      router.replace(dest);
       router.refresh();
     } catch {
       setError("לא ניתן להתחבר כרגע");

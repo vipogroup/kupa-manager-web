@@ -57,6 +57,7 @@ import {
   rejectCor,
   startReviewCor,
 } from "./customer-order-requests";
+import { revokeCourierAccessInData, upsertCourierAccessInData } from "./courier-access";
 
 /** Explicit allowlist — never accept arbitrary AppData patches. */
 export const DESKTOP_MUTATE_ACTIONS = [
@@ -104,6 +105,8 @@ export const DESKTOP_MUTATE_ACTIONS = [
   "startReviewCustomerOrderRequest",
   "approveCustomerOrderRequest",
   "rejectCustomerOrderRequest",
+  "upsertCourierAccess",
+  "revokeCourierAccess",
 ] as const;
 
 export type DesktopMutateAction = (typeof DESKTOP_MUTATE_ACTIONS)[number];
@@ -542,6 +545,45 @@ export function applyDesktopMutation(
         data: { ...r.data, cloudContractVersion: CLOUD_CONTRACT_VERSION },
         record: r.request,
         recordKind: "customerOrderRequest",
+      };
+    }
+    case "upsertCourierAccess": {
+      const r = upsertCourierAccessInData(data, {
+        userAccountId: String(p.userAccountId || ""),
+        driverId: String(p.driverId || p.id || ""),
+        isActive: p.isActive !== false,
+        allowedDateMode: typeof p.allowedDateMode === "string" ? p.allowedDateMode : undefined,
+        allowedDateFrom: typeof p.allowedDateFrom === "string" ? p.allowedDateFrom : undefined,
+        allowedDateTo: typeof p.allowedDateTo === "string" ? p.allowedDateTo : undefined,
+        canViewPhone: p.canViewPhone !== false,
+        canViewSecondaryPhone: p.canViewSecondaryPhone === true,
+        canViewCashCollection: p.canViewCashCollection !== false,
+        canOpenNavigation: p.canOpenNavigation !== false,
+        canViewOrderItems: p.canViewOrderItems !== false,
+        canViewOrderNotes: p.canViewOrderNotes !== false,
+        canViewDeliveryNotes: p.canViewDeliveryNotes !== false,
+        canViewStopNotes: p.canViewStopNotes !== false,
+        canViewPaymentMethod: p.canViewPaymentMethod !== false,
+        allowDraftRoutes: p.allowDraftRoutes === true,
+      });
+      if ("error" in r) return { ok: false, error: r.error };
+      return {
+        ok: true,
+        data: { ...r.data, cloudContractVersion: CLOUD_CONTRACT_VERSION },
+        record: r.access,
+        recordKind: "courierAccess",
+      };
+    }
+    case "revokeCourierAccess": {
+      const userAccountId = String(p.userAccountId || "");
+      if (!userAccountId) return { ok: false, error: "שם משתמש לשליח חובה" };
+      const r = revokeCourierAccessInData(data, userAccountId);
+      if ("error" in r) return { ok: false, error: r.error };
+      return {
+        ok: true,
+        data: { ...r.data, cloudContractVersion: CLOUD_CONTRACT_VERSION },
+        record: r.access,
+        recordKind: "courierAccess",
       };
     }
     default:

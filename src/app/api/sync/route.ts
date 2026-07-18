@@ -129,6 +129,7 @@ export async function PUT(req: NextRequest) {
         "vehicles",
         "deliveryRoutes",
         "customerOrderRequests",
+        "courierAccess",
         "orderPayments",
         "payments",
         "warehouses",

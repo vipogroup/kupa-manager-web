@@ -9,6 +9,22 @@ function extractToken(req: NextRequest): string | undefined {
   return m?.[1];
 }
 
+function isCourierUsername(username: string): boolean {
+  const testCourier = (process.env.KUPA_TEST_COURIER_USERNAME || "").trim();
+  const primaryCourier = (process.env.KUPA_COURIER_USERNAME || "").trim();
+  return Boolean(
+    (testCourier && username === testCourier) || (primaryCourier && username === primaryCourier)
+  );
+}
+
+function courierApiAllowed(pathname: string): boolean {
+  if (pathname.startsWith("/api/courier/")) return true;
+  if (pathname.startsWith("/api/auth/logout")) return true;
+  if (pathname.startsWith("/api/auth/session")) return true;
+  if (pathname.startsWith("/api/auth/whoami")) return true;
+  return false;
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -20,7 +36,6 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith("/api/auth/login") ||
     pathname.startsWith("/api/desktop/login") ||
     pathname.startsWith("/api/public/") ||
-    // PWA install assets must be public (no session) so browsers can install/register.
     pathname === "/manifest.webmanifest" ||
     pathname === "/sw.js" ||
     pathname.startsWith("/icons/")
@@ -39,6 +54,9 @@ export async function middleware(req: NextRequest) {
     if (!session.ok) {
       return NextResponse.json({ error: "נדרשת התחברות" }, { status: 401 });
     }
+    if (isCourierUsername(session.username) && !courierApiAllowed(pathname)) {
+      return NextResponse.json({ error: "COURIER_MODULE_FORBIDDEN" }, { status: 403 });
+    }
     return NextResponse.next();
   }
 
@@ -47,6 +65,15 @@ export async function middleware(req: NextRequest) {
     url.pathname = "/login";
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
+  }
+
+  if (isCourierUsername(session.username)) {
+    if (!pathname.startsWith("/courier")) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/courier";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
   }
 
   return NextResponse.next();

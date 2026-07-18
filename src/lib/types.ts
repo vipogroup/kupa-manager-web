@@ -215,6 +215,8 @@ export type AppData = {
   deliveryRoutes?: DeliveryRoute[];
   /** Public form inbox — cloud-shared; not a paid order until Approved. */
   customerOrderRequests?: Array<{ id: string; [key: string]: unknown }>;
+  /** Courier mobile access mappings (cloud-only; Windows schema stays 16). */
+  courierAccess?: Array<{ id: string; [key: string]: unknown }>;
   updatedAt: string;
   customerCounter?: number;
   productCounter?: number;
@@ -251,6 +253,7 @@ export function emptyData(): AppData {
     vehicles: [],
     deliveryRoutes: [],
     customerOrderRequests: [],
+    courierAccess: [],
     updatedAt: new Date().toISOString(),
     customerCounter: 0,
     productCounter: 0,
