@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession, securityHeaders, jsonError } from "@/lib/security";
 import {
-  accountWorkspacePath,
   resolveAccountIdFromSession,
   shortFingerprint,
   PRIMARY_ACCOUNT_ID,
   TEST_ACCOUNT_ID,
 } from "@/lib/account-workspace";
+import { accountWorkspacePath } from "@/lib/workspace-path";
 import { readAccountWorkspaceSnapshot } from "@/lib/cloud";
 
 export const runtime = "nodejs";

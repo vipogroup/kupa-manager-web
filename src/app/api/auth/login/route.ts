@@ -14,11 +14,8 @@ import {
 } from "@/lib/security";
 import { RATE_IDS, enforceRateLimit } from "@/lib/rate-limit";
 import { authenticateUser } from "@/lib/auth-accounts";
-import {
-  accountWorkspacePath,
-  resolveAccountIdFromSession,
-  shortFingerprint,
-} from "@/lib/account-workspace";
+import { resolveAccountIdFromSession, shortFingerprint } from "@/lib/account-workspace";
+import { accountWorkspacePath } from "@/lib/workspace-path";
 
 export const runtime = "nodejs";
 
