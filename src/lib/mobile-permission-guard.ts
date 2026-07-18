@@ -28,6 +28,8 @@ const ACTION_MODULE: Partial<Record<DesktopMutateAction, MobileModuleId>> = {
   confirmOrder: "orders",
   cancelOrder: "orders",
   copyOrder: "orders",
+  createOrderPayment: "orders",
+  voidOrderPayment: "orders",
   createDelivery: "deliveries",
   updateDelivery: "deliveries",
   markDeliveryReady: "deliveries",

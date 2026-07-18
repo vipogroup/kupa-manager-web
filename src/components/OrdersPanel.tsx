@@ -573,8 +573,30 @@ export function OrdersPanel({ onCreateDelivery }: { onCreateDelivery?: (orderId:
           {linkedDelivery ? (
             <p className="mt-1 text-sm" dir="ltr">
               משלוח {linkedDelivery.deliveryNumber} · {deliveryStatusLabel[linkedDelivery.status]}
+              {" · "}
+              גבייה {formatMoney(linkedDelivery.orderTotalSnapshot || 0)}
             </p>
           ) : null}
+          {(() => {
+            const pays = (
+              (useKupaStore.getState() as { orderPayments?: Array<Record<string, unknown>> }).orderPayments ||
+              []
+            ).filter((p) => String(p.orderId || "") === o.id);
+            if (pays.length === 0) return null;
+            return (
+              <div className="mt-3 space-y-1 text-sm" data-mobile-id="orders.mobile.details.payments">
+                <p className="font-medium">תשלומים</p>
+                {pays.map((p) => (
+                  <p key={String(p.id)} className="flex justify-between gap-2 text-[var(--muted)]">
+                    <span>
+                      {String(p.paymentMethod || "cash")} · {String(p.status || "")}
+                    </span>
+                    <span>{formatMoney(Number(p.amount) || 0)}</span>
+                  </p>
+                ))}
+              </div>
+            );
+          })()}
           <ul className="mt-3 space-y-2">
             {o.items.map((it) => (
               <li key={it.id} className="min-w-0 rounded-xl border bg-white px-3 py-2 text-sm">

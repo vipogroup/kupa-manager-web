@@ -51,6 +51,7 @@ import {
   updateVehicleInData,
 } from "./phase9a-fleet";
 import { CLOUD_CONTRACT_VERSION } from "./cloud-contract";
+import { createOrderPaymentInData, voidOrderPaymentInData } from "./order-payments-cloud";
 
 /** Explicit allowlist — never accept arbitrary AppData patches. */
 export const DESKTOP_MUTATE_ACTIONS = [
@@ -93,6 +94,8 @@ export const DESKTOP_MUTATE_ACTIONS = [
   "updateDeliveryRoute",
   "cancelDeliveryRoute",
   "reorderRouteStops",
+  "createOrderPayment",
+  "voidOrderPayment",
 ] as const;
 
 export type DesktopMutateAction = (typeof DESKTOP_MUTATE_ACTIONS)[number];
@@ -468,6 +471,26 @@ export function applyDesktopMutation(
       const r = reorderRouteStopsInData(data, id, ordered);
       if ("error" in r) return { ok: false, error: r.error };
       return { ok: true, data: r.data, record: r.route, recordKind: "deliveryRoute" };
+    }
+    case "createOrderPayment": {
+      const r = createOrderPaymentInData(data, p);
+      if ("error" in r) return { ok: false, error: r.error };
+      return {
+        ok: true,
+        data: { ...r.data, cloudContractVersion: CLOUD_CONTRACT_VERSION },
+        record: r.payment,
+        recordKind: "orderPayment",
+      };
+    }
+    case "voidOrderPayment": {
+      const r = voidOrderPaymentInData(data, p);
+      if ("error" in r) return { ok: false, error: r.error };
+      return {
+        ok: true,
+        data: { ...r.data, cloudContractVersion: CLOUD_CONTRACT_VERSION },
+        record: r.payment,
+        recordKind: "orderPayment",
+      };
     }
     default:
       return { ok: false, error: "פעולה אינה נתמכת" };

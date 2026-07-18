@@ -109,15 +109,26 @@ export async function PUT(req: NextRequest) {
     // SAFE merge: preserve unknown top-level keys already in cloud that the client omitted.
     const existing = await readAccountWorkspaceSnapshot(accountId);
     let dataToSave = validated.data;
+    const rawData =
+      value.data && typeof value.data === "object" && !Array.isArray(value.data)
+        ? (value.data as Record<string, unknown>)
+        : {};
     if (existing.exists && existing.snapshot?.data) {
       const baseRec = existing.snapshot.data as unknown as Record<string, unknown>;
       const overlayRec = validated.data as unknown as Record<string, unknown>;
       const mergedRec = mergeAppDataPreserveUnknown(baseRec, overlayRec);
       // If overlay omitted a known collection key entirely, keep cloud value (missing ≠ delete).
-      for (const key of [
+      // Use RAW client payload for omit detection — validateAppData materializes [] for many keys.
+      const preserveIfOmittedOrEmptyWipe = [
+        "orders",
+        "customers",
+        "deliveries",
+        "products",
+        "inventoryMovements",
         "drivers",
         "vehicles",
         "deliveryRoutes",
+        "orderPayments",
         "payments",
         "warehouses",
         "transfers",
@@ -129,8 +140,21 @@ export async function PUT(req: NextRequest) {
         "mobilePreferences",
         "metadata",
         "audit",
-      ]) {
-        if (!(key in overlayRec) && key in baseRec) {
+      ];
+      for (const key of preserveIfOmittedOrEmptyWipe) {
+        if (!(key in rawData) && key in baseRec) {
+          mergedRec[key] = baseRec[key];
+          continue;
+        }
+        // Block silent empty wipe of non-empty cloud collections (stale/partial web clients).
+        // Soft-delete / cancel paths keep rows; true empty arrays are almost always a bug.
+        if (
+          key in rawData &&
+          Array.isArray(rawData[key]) &&
+          (rawData[key] as unknown[]).length === 0 &&
+          Array.isArray(baseRec[key]) &&
+          (baseRec[key] as unknown[]).length > 0
+        ) {
           mergedRec[key] = baseRec[key];
         }
       }
